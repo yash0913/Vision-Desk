@@ -38,8 +38,8 @@ Key environment variables (used across the stack):
   - `VITE_SOCKET_URL` – Socket.IO base URL (defaults to `https://anydesk.onrender.com`).
 
 For **local, all-in-one development**, you will usually want:
-- `VITE_API_BASE=http://localhost:5000/api`
-- `VITE_SOCKET_URL=http://localhost:5000`
+- `VITE_API_BASE=https://anydesk.onrender.com/api`
+- `VITE_SOCKET_URL=https://anydesk.onrender.com`
 
 ### Frontend + Electron shell (root)
 

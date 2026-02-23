@@ -81,9 +81,16 @@ export default function DeskLinkPage() {
       // 🔥 hostDeviceId = the machine we want to view / control
       const remoteId = payload.hostDeviceId || payload.receiverDeviceId;
 
-      navigate(
-        `/workspace/desklink/viewer?sessionId=${payload.sessionId}&remoteDeviceId=${remoteId}&sessionToken=${payload.callerToken}`
-      );
+      const qp = new URLSearchParams({
+        sessionId: String(payload.sessionId),
+        remoteDeviceId: String(remoteId),
+      });
+
+      if (payload.callerToken && payload.callerToken !== 'undefined' && payload.callerToken !== 'null') {
+        qp.set('sessionToken', String(payload.callerToken));
+      }
+
+      navigate(`/workspace/desklink/viewer?${qp.toString()}`);
       
       
     } else if (payload.status === 'rejected') {
@@ -272,7 +279,7 @@ export default function DeskLinkPage() {
     }
   };
 
-  const BACKEND_URL = import.meta.env.VITE_API_BASE?.replace(/\/api$/, '') || 'http://localhost:5000';
+  const BACKEND_URL = import.meta.env.VITE_API_BASE?.replace(/\/api$/, '') || 'https://anydesk.onrender.com';
 
   const handleDownloadAgent = () => {
     window.open(AGENT_DOWNLOAD_URL, '_blank');

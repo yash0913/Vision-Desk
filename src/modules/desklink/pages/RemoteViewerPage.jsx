@@ -17,7 +17,11 @@ export default function RemoteViewerPage() {
    const remoteDeviceId = searchParams.get('remoteDeviceId');
    // IMPORTANT: ephemeral session token (callerToken) issued by /remote/accept
    // must be passed to startAsCaller so server verifies webrtc signaling messages.
-   const sessionToken = searchParams.get('sessionToken');
+   const rawSessionToken = searchParams.get('sessionToken');
+   const sessionToken =
+     rawSessionToken && rawSessionToken !== 'undefined' && rawSessionToken !== 'null'
+       ? rawSessionToken
+       : '';
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [localDeviceId, setLocalDeviceId] = useState('');

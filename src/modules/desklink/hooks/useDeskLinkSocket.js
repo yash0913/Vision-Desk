@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 
 // Local-first Socket.IO endpoint for DeskLink / meeting remote control.
 // You can still override this with VITE_SOCKET_URL if needed.
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'https://anydesk.onrender.com';
 
 export function useDeskLinkSocket({ token, onRemoteRequest, onRemoteResponse }) {
   const socketRef = useRef(null);
@@ -104,11 +104,7 @@ export function useDeskLinkSocket({ token, onRemoteRequest, onRemoteResponse }) 
         const weCreatedShared = globalSocket === socketRef.current;
 
         if (weCreatedShared) {
-          console.log('[useDeskLinkSocket] cleanup: we created the shared socket — disconnecting');
-          socketRef.current?.disconnect();
-          if (typeof window !== 'undefined' && window.__desklinkSocket === socketRef.current) {
-            window.__desklinkSocket = undefined;
-          }
+          console.log('[useDeskLinkSocket] cleanup: we created the shared socket — leaving it connected');
         } else {
           console.log('[useDeskLinkSocket] cleanup: not owner of shared socket — leaving it connected');
         }

@@ -32,6 +32,9 @@ function createSessionToken({ sessionId, callerDeviceId, receiverDeviceId, role 
   );
 
   console.log('[sessionToken] Token created successfully for session:', sessionId);
+  console.log('[sessionToken] Token preview (first 50 chars):', token.substring(0, 50));
+  console.log('[sessionToken] Token length:', token.length);
+  console.log('[sessionToken] Token type:', typeof token);
   return token;
 }
 
@@ -64,13 +67,24 @@ function verifySessionToken(token) {
       return null;
     }
 
+    if (typeof token !== 'string') {
+      console.warn('[sessionToken] verify called with non-string token:', typeof token);
+      return null;
+    }
+
+    const trimmed = token.trim();
+    if (!trimmed || trimmed === 'undefined' || trimmed === 'null') {
+      console.warn('[sessionToken] verify called with invalid token string');
+      return null;
+    }
+
     const secret = process.env.SESSION_SECRET || process.env.JWT_SECRET;
     if (!secret) {
       console.error('[sessionToken] CRITICAL: Cannot verify token - no secret available');
       return null;
     }
 
-    const decoded = jwt.verify(token, secret);
+    const decoded = jwt.verify(trimmed, secret);
 
     if (decoded.type !== 'webrtc-session' && decoded.type !== 'desklink-session') {
       console.warn('[sessionToken] invalid token type:', decoded.type);

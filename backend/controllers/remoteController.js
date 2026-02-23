@@ -249,29 +249,41 @@ const acceptRemoteSession = async (req, res) => {
       resolution: session.resolution,
     };
 
+    const callerPayload = {
+      ...sessionMetadata,
+      token: callerToken,
+      role: 'caller',
+    };
+    
     console.log('[desklink-session-start emit]', { 
       sessionId: session.sessionId, 
       role: 'caller', 
       hasToken: !!callerToken,
+      tokenPreview: callerToken?.substring(0, 50),
+      tokenLength: callerToken?.length,
       callerUserId: session.callerUserId,
       callerDeviceId: session.callerDeviceId 
     });
-    emitToUser(session.callerUserId, 'desklink-session-start', {
+    console.log('[desklink-session-start] Full caller payload:', JSON.stringify(callerPayload).substring(0, 200));
+    
+    emitToUser(session.callerUserId, 'desklink-session-start', callerPayload);
+    const receiverPayload = {
       ...sessionMetadata,
-      token: callerToken,
-      role: 'caller',
-    });
+      token: receiverToken,
+      role: 'receiver',
+    };
+    
     console.log('[desklink-session-start emit]', { 
       sessionId: session.sessionId, 
       role: 'receiver', 
       hasToken: !!receiverToken,
+      tokenPreview: receiverToken?.substring(0, 50),
+      tokenLength: receiverToken?.length,
       receiverDeviceId: session.receiverDeviceId 
     });
-    emitToDevice(session.receiverDeviceId, 'desklink-session-start', {
-      ...sessionMetadata,
-      token: receiverToken,
-      role: 'receiver',
-    });
+    console.log('[desklink-session-start] Full receiver payload:', JSON.stringify(receiverPayload).substring(0, 200));
+    
+    emitToDevice(session.receiverDeviceId, 'desklink-session-start', receiverPayload);
 
     // Legacy / compatibility
     emitToUser(session.callerUserId, 'desklink-remote-response', {
@@ -279,6 +291,7 @@ const acceptRemoteSession = async (req, res) => {
       status: 'accepted',
       viewerDeviceId: session.callerDeviceId,
       hostDeviceId: session.receiverDeviceId,   // ✅ now always the agent device
+      callerToken,
     });
     emitToUser(session.callerUserId, 'desklink-remote-accepted', {
       sessionId: session.sessionId,

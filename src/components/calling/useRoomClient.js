@@ -66,7 +66,7 @@ export function useRoomClient(roomId, userId, userName, isHost = false, onLeave 
       try {
         const token = localStorage.getItem('token') || localStorage.getItem('vd_auth_token');
         // Fix: Ensure VITE_API has no trailing slash and append /api if missing (unless it's already there)
-        let baseUrl = (import.meta.env.VITE_API || 'http://localhost:5000/api').replace(/\/$/, '');
+        let baseUrl = (import.meta.env.VITE_API || 'https://anydesk.onrender.com/api').replace(/\/$/, '');
 
         // If the base URL doesn't end with /api, append it because backend serves routes at /api/remote...
         if (!baseUrl.endsWith('/api')) {
@@ -1414,7 +1414,7 @@ export function useRoomClient(roomId, userId, userName, isHost = false, onLeave 
     }
 
     // Local-first Socket.IO endpoint for meetings; override with VITE_SOCKET_URL if needed.
-    socketRef.current = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
+    socketRef.current = io(import.meta.env.VITE_SOCKET_URL || 'https://anydesk.onrender.com', {
       auth: { token: authToken },
       transports: ['websocket'],
       path: '/socket.io',

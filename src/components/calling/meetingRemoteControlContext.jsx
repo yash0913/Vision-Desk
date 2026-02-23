@@ -189,10 +189,14 @@ export function MeetingRemoteControlProvider({ children }) {
 
     const handleSessionStart = async (payload) => {
       try {
+        console.log('[MeetingRemoteControl] desklink-session-start RAW payload:', payload);
         console.log('[MeetingRemoteControl] desklink-session-start received:', { 
           sessionId: payload.sessionId, 
           role: payload.role, 
-          hasToken: !!payload.token 
+          hasToken: !!payload.token,
+          tokenPreview: payload.token ? payload.token.substring(0, 50) : 'null',
+          tokenType: typeof payload.token,
+          tokenLength: payload.token?.length
         });
 
         if (!payload || !payload.sessionId) {
@@ -225,6 +229,7 @@ export function MeetingRemoteControlProvider({ children }) {
           sessionId: config.sessionId,
           hasAuthToken: !!config.authToken,
           hasSessionToken: !!config.sessionToken,
+          sessionTokenPreview: config.sessionToken ? config.sessionToken.substring(0, 50) : 'null',
           localDeviceId: config.localDeviceId,
           remoteDeviceId: config.remoteDeviceId
         });
@@ -233,6 +238,7 @@ export function MeetingRemoteControlProvider({ children }) {
           setPermissions((prev) => ({ ...prev, ...payload.permissions }));
         }
 
+        console.log('[MeetingRemoteControl] About to call beginControl with sessionToken:', config.sessionToken?.substring(0, 50));
         await beginControl(config);
       } catch (err) {
         console.error('[MeetingRemoteControl] desklink-session-start handler error', err);

@@ -260,8 +260,10 @@ function createSocketServer(server, clientOrigin) {
     socket.on('webrtc-offer', async ({ sessionId, fromUserId, fromDeviceId, toDeviceId, sdp, token }) => {
       try {
         console.log(`[webrtc-offer] Session: ${sessionId}, From: ${fromDeviceId} → To: ${toDeviceId}, token present: ${!!token}`);
+        console.log(`[webrtc-offer] Token value (first 50 chars):`, token ? token.substring(0, 50) : 'null');
+        console.log(`[webrtc-offer] Token type:`, typeof token);
 
-        if (!token) {
+        if (!token || token === 'undefined' || token === 'null') {
           console.error('[WebRTC] Missing session token in offer');
           return;
         }
@@ -270,6 +272,7 @@ function createSocketServer(server, clientOrigin) {
           const decoded = verifySessionToken(token);
           if (!decoded) {
             console.warn('[webrtc-offer] token validation failed: verify returned null');
+            console.warn('[webrtc-offer] Token that failed (first 100 chars):', token.substring(0, 100));
             return;
           }
           if (decoded.sessionId && decoded.sessionId !== sessionId) {

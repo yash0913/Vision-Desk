@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
 // Local-first signaling endpoint; override with VITE_SOCKET_URL if desired.
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'https://anydesk.onrender.com';
 const TURN_ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   {
@@ -171,21 +171,33 @@ export function useDeskLinkWebRTC() {
             localUserId,
           } = sessionRef.current;
 
+          console.log('[WebRTC] ICE candidate event fired. SessionRef state:', {
+            hasSessionId: !!sessionId,
+            hasSessionToken: !!sessionToken,
+            sessionTokenPreview: sessionToken ? sessionToken.substring(0, 50) : 'NULL',
+            sessionTokenType: typeof sessionToken,
+            sessionTokenValue: sessionToken
+          });
+
           if (!sessionToken) {
-            console.warn('[WebRTC] Skipping ICE emit — no sessionToken');
+            console.error('[WebRTC] CRITICAL: ICE candidate fired but sessionToken is missing!');
+            console.error('[WebRTC] SessionRef.current:', sessionRef.current);
             return;
           }
 
-          console.log('[WebRTC] Sending local ICE candidate');
+          console.log('[WebRTC] Sending local ICE candidate with token');
           
-          socketRef.current.emit('webrtc-ice', {
+          const icePayload = {
             sessionId,
             fromUserId: localUserId,
             fromDeviceId: localDeviceId,
             toDeviceId: remoteDeviceId,
             candidate: event.candidate,
             token: sessionToken,
-          });
+          };
+
+          console.log('[WebRTC] ICE payload token preview:', icePayload.token?.substring(0, 50));
+          socketRef.current.emit('webrtc-ice', icePayload);
         }
       };
 
@@ -280,7 +292,18 @@ export function useDeskLinkWebRTC() {
           providedIceServers = TURN_ICE_SERVERS;
         }
 
-        // Set session FIRST
+        // Set session FIRST - BEFORE creating PeerConnection
+        console.log('[WebRTC] ===== RECEIVED CONFIG =====');
+        console.log('[WebRTC] sessionId:', sessionId);
+        console.log('[WebRTC] sessionToken preview:', sessionToken?.substring(0, 50));
+        console.log('[WebRTC] sessionToken length:', sessionToken?.length);
+        console.log('[WebRTC] sessionToken type:', typeof sessionToken);
+        console.log('[WebRTC] sessionToken full value:', sessionToken);
+        
+        if (!sessionToken) {
+          throw new Error('CRITICAL: sessionToken is missing in startAsCaller config!');
+        }
+
         sessionRef.current = {
           sessionId,
           sessionToken,
@@ -289,6 +312,11 @@ export function useDeskLinkWebRTC() {
           remoteDeviceId,
           role: 'caller',
         };
+        
+        console.log('[WebRTC] ===== SESSION STORED IN REF =====');
+        console.log('[WebRTC] sessionRef.current.sessionToken preview:', sessionRef.current.sessionToken?.substring(0, 50));
+        console.log('[WebRTC] sessionRef.current.sessionToken type:', typeof sessionRef.current.sessionToken);
+        console.log('[WebRTC] sessionRef.current full:', sessionRef.current);
 
         // ✅ CRITICAL FIX: Setup socket and WAIT for it to connect before creating offer
         let socket;
@@ -441,14 +469,20 @@ export function useDeskLinkWebRTC() {
 
         // Emit offer
         console.log('[WebRTC] Sending offer to', remoteDeviceId, 'with token present:', !!sessionToken);
-        socket.emit('webrtc-offer', {
+        console.log('[WebRTC] Token being sent (first 50 chars):', sessionToken?.substring(0, 50));
+        console.log('[WebRTC] Token type:', typeof sessionToken);
+        
+        const offerPayload = {
           sessionId,
           fromUserId: localUserId,
           fromDeviceId: localDeviceId,
           toDeviceId: remoteDeviceId,
           sdp: offer.sdp,
           token: sessionToken,
-        });
+        };
+        
+        console.log('[WebRTC] Offer payload token preview:', offerPayload.token?.substring(0, 50));
+        socket.emit('webrtc-offer', offerPayload);
 
         console.log('[WebRTC] Offer emitted successfully');
 

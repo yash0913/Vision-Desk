@@ -329,13 +329,13 @@ Verify Docker Compose setup
 
 2. **Health Check**
    ```powershell
-   curl http://localhost:5000/health
+   curl https://anydesk.onrender.com/health
    ```
    - **Expected**: `{"status":"ok"}`
 
 3. **Metrics**
    ```powershell
-   curl http://localhost:5000/metrics
+   curl https://anydesk.onrender.com/metrics
    ```
    - **Expected**: Prometheus metrics
 
