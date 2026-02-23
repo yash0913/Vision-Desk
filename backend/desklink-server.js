@@ -139,6 +139,11 @@ function initDesklink(app, server, io) {
   });
 
   // /api/remote/meeting-request
+  // DISABLED: This endpoint conflicts with remoteController.js MongoDB-backed flow.
+  // Meeting remote requests should use the requestMeetingRemoteSession endpoint
+  // in remoteController.js which properly creates sessions in MongoDB.
+  // Keeping this commented for reference.
+  /*
   app.post('/api/remote/meeting-request', (req, res) => {
     const { userId, name } = getAuthContextFromReq(req);
     const { toUserId } = req.body || {};
@@ -182,6 +187,7 @@ function initDesklink(app, server, io) {
 
     return res.status(201).json({ session: { sessionId } });
   });
+  */
 
   // /api/remote/accept
   // DISABLED: This conflicts with remoteRoutes.js which uses MongoDB.
@@ -384,38 +390,10 @@ function initDesklink(app, server, io) {
       trackSocket(onlineDevicesById, devId, socket.id);
     });
 
-    // WebRTC Offer
-    socket.on('webrtc-offer', ({ sessionId, fromUserId, fromDeviceId, toDeviceId, sdp, token }) => {
-      // Check if this is a DeskLink in-memory session
-      const session = sessions.get(sessionId);
-      if (session) {
-        // Handle using desklink logic
-        const payload = { sessionId, fromUserId, fromDeviceId, toDeviceId, sdp, token };
-        console.log('[desklink] relay offer', sessionId);
-        emitToDevice(toDeviceId, 'webrtc-offer', payload);
-      } else {
-        // Pass through? socketManager probably handles it if it finds it in Mongo.
-      }
-    });
-
-    // WebRTC Answer
-    socket.on('webrtc-answer', ({ sessionId, fromUserId, fromDeviceId, toDeviceId, sdp, token }) => {
-      const session = sessions.get(sessionId);
-      if (session) {
-        const payload = { sessionId, fromUserId, fromDeviceId, toDeviceId, sdp, token };
-        console.log('[desklink] relay answer', sessionId);
-        emitToDevice(toDeviceId, 'webrtc-answer', payload);
-      }
-    });
-
-    // WebRTC ICE
-    socket.on('webrtc-ice', ({ sessionId, fromUserId, fromDeviceId, toDeviceId, candidate, token }) => {
-      const session = sessions.get(sessionId);
-      if (session) {
-        const payload = { sessionId, fromUserId, fromDeviceId, toDeviceId, candidate, token };
-        emitToDevice(toDeviceId, 'webrtc-ice', payload);
-      }
-    });
+    // WebRTC Offer/Answer/ICE handlers REMOVED from desklink-server.js
+    // These are now handled exclusively by socketManager.js with proper token validation.
+    // In-memory sessions are no longer used; all sessions go through MongoDB.
+    // This eliminates duplicate handlers and ensures consistent token validation.
 
     // WebRTC Cancel
     socket.on('webrtc-cancel', ({ sessionId, fromUserId }) => {

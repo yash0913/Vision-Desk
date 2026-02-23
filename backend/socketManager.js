@@ -259,7 +259,7 @@ function createSocketServer(server, clientOrigin) {
     // WebRTC Offer
     socket.on('webrtc-offer', async ({ sessionId, fromUserId, fromDeviceId, toDeviceId, sdp, token }) => {
       try {
-        console.log(`[webrtc-offer] Session: ${sessionId}, From: ${fromDeviceId} → To: ${toDeviceId}`);
+        console.log(`[webrtc-offer] Session: ${sessionId}, From: ${fromDeviceId} → To: ${toDeviceId}, token present: ${!!token}`);
 
         if (!token) {
           console.error('[WebRTC] Missing session token in offer');

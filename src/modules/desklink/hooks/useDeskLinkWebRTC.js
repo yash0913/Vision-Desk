@@ -428,12 +428,19 @@ export function useDeskLinkWebRTC() {
 
         // Guard: ensure we have a sessionToken
         if (!sessionToken) {
-          console.error('[WebRTC] Missing sessionToken. Aborting offer emit.');
-          return;
+          console.error('[WebRTC] CRITICAL: Missing sessionToken. Aborting offer emit.');
+          console.error('[WebRTC] Session config:', {
+            sessionId,
+            localUserId,
+            localDeviceId,
+            remoteDeviceId,
+            hasAuthToken: !!authToken
+          });
+          throw new Error('Missing sessionToken - cannot proceed with WebRTC offer');
         }
 
         // Emit offer
-        console.log('[WebRTC] Sending offer to', remoteDeviceId);
+        console.log('[WebRTC] Sending offer to', remoteDeviceId, 'with token present:', !!sessionToken);
         socket.emit('webrtc-offer', {
           sessionId,
           fromUserId: localUserId,
@@ -442,6 +449,8 @@ export function useDeskLinkWebRTC() {
           sdp: offer.sdp,
           token: sessionToken,
         });
+
+        console.log('[WebRTC] Offer emitted successfully');
 
         console.log('[WebRTC] ✓✓✓ OFFER SENT ✓✓✓');
       } catch (err) {

@@ -6,8 +6,20 @@ const crypto = require('crypto');
  */
 function createSessionToken({ sessionId, callerDeviceId, receiverDeviceId, role }) {
   const secret = process.env.SESSION_SECRET || process.env.JWT_SECRET;
-  if (!secret) throw new Error('SESSION_SECRET missing');
-  return jwt.sign(
+  if (!secret) {
+    console.error('[sessionToken] CRITICAL: SESSION_SECRET and JWT_SECRET are both missing!');
+    throw new Error('SESSION_SECRET or JWT_SECRET required for token generation');
+  }
+  
+  console.log('[sessionToken] Creating session token:', {
+    sessionId,
+    role,
+    hasSecret: !!secret,
+    callerDeviceId: String(callerDeviceId),
+    receiverDeviceId: String(receiverDeviceId)
+  });
+
+  const token = jwt.sign(
     {
       sessionId,
       callerDeviceId: String(callerDeviceId),
@@ -18,6 +30,9 @@ function createSessionToken({ sessionId, callerDeviceId, receiverDeviceId, role 
     secret,
     { expiresIn: '10m' }
   );
+
+  console.log('[sessionToken] Token created successfully for session:', sessionId);
+  return token;
 }
 
 /**
@@ -44,7 +59,17 @@ function generateSessionToken(sessionId, userId, deviceId, expiresInSeconds = 30
  */
 function verifySessionToken(token) {
   try {
+    if (!token) {
+      console.warn('[sessionToken] verify called with null/undefined token');
+      return null;
+    }
+
     const secret = process.env.SESSION_SECRET || process.env.JWT_SECRET;
+    if (!secret) {
+      console.error('[sessionToken] CRITICAL: Cannot verify token - no secret available');
+      return null;
+    }
+
     const decoded = jwt.verify(token, secret);
 
     if (decoded.type !== 'webrtc-session' && decoded.type !== 'desklink-session') {
@@ -52,20 +77,18 @@ function verifySessionToken(token) {
       return null;
     }
 
+    console.log('[sessionToken] Token verified:', { 
+      sessionId: decoded.sessionId, 
+      type: decoded.type, 
+      role: decoded.role 
+    });
+
     return decoded;
   } catch (err) {
     console.warn('[sessionToken] verify failed:', err.message);
     return null; // ❗ do NOT throw, just return null
   }
 }
-
-module.exports = {
-  createSessionToken,
-  generateSessionToken,
-  verifySessionToken,
-  generateTurnCredentials,
-};
-
 
 /**
  * Generate TURN credentials using HMAC (for coturn long-term credentials)
@@ -90,6 +113,7 @@ function generateTurnCredentials(username, ttl = 86400) {
 }
 
 module.exports = {
+  createSessionToken,
   generateSessionToken,
   verifySessionToken,
   generateTurnCredentials,

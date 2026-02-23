@@ -249,13 +249,24 @@ const acceptRemoteSession = async (req, res) => {
       resolution: session.resolution,
     };
 
-    console.log('[desklink-session-start emit]', { sessionId: session.sessionId, role: 'caller', hasToken: !!callerToken });
+    console.log('[desklink-session-start emit]', { 
+      sessionId: session.sessionId, 
+      role: 'caller', 
+      hasToken: !!callerToken,
+      callerUserId: session.callerUserId,
+      callerDeviceId: session.callerDeviceId 
+    });
     emitToUser(session.callerUserId, 'desklink-session-start', {
       ...sessionMetadata,
       token: callerToken,
       role: 'caller',
     });
-    console.log('[desklink-session-start emit]', { sessionId: session.sessionId, role: 'receiver', hasToken: !!receiverToken });
+    console.log('[desklink-session-start emit]', { 
+      sessionId: session.sessionId, 
+      role: 'receiver', 
+      hasToken: !!receiverToken,
+      receiverDeviceId: session.receiverDeviceId 
+    });
     emitToDevice(session.receiverDeviceId, 'desklink-session-start', {
       ...sessionMetadata,
       token: receiverToken,

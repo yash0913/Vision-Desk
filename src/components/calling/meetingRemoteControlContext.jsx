@@ -189,9 +189,25 @@ export function MeetingRemoteControlProvider({ children }) {
 
     const handleSessionStart = async (payload) => {
       try {
-        if (!payload || !payload.sessionId) return;
+        console.log('[MeetingRemoteControl] desklink-session-start received:', { 
+          sessionId: payload.sessionId, 
+          role: payload.role, 
+          hasToken: !!payload.token 
+        });
+
+        if (!payload || !payload.sessionId) {
+          console.error('[MeetingRemoteControl] Invalid payload - missing sessionId');
+          return;
+        }
+
+        if (!payload.token) {
+          console.error('[MeetingRemoteControl] Missing sessionToken in payload. Aborting.');
+          return;
+        }
+
         if (payload.role !== 'caller') {
           // Host/agent side will be handled by native agent; we only drive viewer here
+          console.log('[MeetingRemoteControl] Role is not caller, skipping');
           return;
         }
 
@@ -204,6 +220,14 @@ export function MeetingRemoteControlProvider({ children }) {
           localDeviceId: payload.callerDeviceId,
           remoteDeviceId: payload.receiverDeviceId,
         };
+
+        console.log('[MeetingRemoteControl] Config built:', {
+          sessionId: config.sessionId,
+          hasAuthToken: !!config.authToken,
+          hasSessionToken: !!config.sessionToken,
+          localDeviceId: config.localDeviceId,
+          remoteDeviceId: config.remoteDeviceId
+        });
 
         if (payload.permissions) {
           setPermissions((prev) => ({ ...prev, ...payload.permissions }));
