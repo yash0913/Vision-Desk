@@ -2,7 +2,7 @@ import React from 'react';
 import {
   Mic, MicOff, Video, VideoOff, Monitor, PhoneOff,
   Users, MessageSquare, Smile, Settings, Info,
-  MoreVertical, Share2,
+  MoreVertical, MousePointer2,
 } from 'lucide-react';
 
 export default function ControlsBar({
@@ -66,7 +66,7 @@ export default function ControlsBar({
               <Monitor size={20} />
             </button>
             <button onClick={onToggleRemoteControl} className={`${btnBase} ${isRemoteControlOpen ? 'bg-purple-600 text-white' : btnSecondary} border-none shadow-none`}>
-              <Share2 size={20} />
+              <MousePointer2 size={20} />
             </button>
           </div>
 

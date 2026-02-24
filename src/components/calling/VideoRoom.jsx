@@ -14,7 +14,7 @@ import MeetingChatPanel from './MeetingChatPanel.jsx';
 import { MeetingRemoteControlProvider, useMeetingRemoteControl } from './meetingRemoteControlContext.jsx';
 import RemoteVideoArea from '../../modules/desklink/components/RemoteVideoArea.jsx';
 import IncomingRequestModal from '../../modules/desklink/components/IncomingRequestModal.jsx';
-import { Monitor } from 'lucide-react';
+import { MousePointer2 } from 'lucide-react';
 
 function shortId(id) {
   if (!id) return '';
@@ -89,11 +89,7 @@ function VideoRoomInner({
   } = useMeetingRemoteControl();
 
   const [isAccessPanelOpen, setIsAccessPanelOpen] = React.useState(false);
-  const [accessState, setAccessState] = React.useState({
-    ownerId: null,
-    activeController: null,
-    pendingRequests: [],
-  });
+  const [accessStateByOwner, setAccessStateByOwner] = React.useState({});
   const [accessPopup, setAccessPopup] = React.useState(null);
   const [requestingByTarget, setRequestingByTarget] = React.useState({});
 
@@ -145,9 +141,20 @@ function VideoRoomInner({
 
   const pendingIncomingCount = React.useMemo(() => {
     if (!localAuthUserId) return 0;
-    if (String(accessState.ownerId || '') !== String(localAuthUserId)) return 0;
-    return Array.isArray(accessState.pendingRequests) ? accessState.pendingRequests.length : 0;
-  }, [accessState, localAuthUserId]);
+    const mine = accessStateByOwner[String(localAuthUserId)];
+    const pending = mine && Array.isArray(mine.pendingRequests) ? mine.pendingRequests : [];
+    return pending.length;
+  }, [accessStateByOwner, localAuthUserId]);
+
+  const myAccessState = React.useMemo(() => {
+    if (!localAuthUserId) return { ownerId: null, activeController: null, pendingRequests: [] };
+    const mine = accessStateByOwner[String(localAuthUserId)] || null;
+    return {
+      ownerId: localAuthUserId,
+      activeController: mine ? mine.activeController || null : null,
+      pendingRequests: mine && Array.isArray(mine.pendingRequests) ? mine.pendingRequests : [],
+    };
+  }, [accessStateByOwner, localAuthUserId]);
 
   useEffect(() => {
     const socket = window.__meetingSocket;
@@ -155,15 +162,21 @@ function VideoRoomInner({
 
     const handleAccessState = (payload) => {
       if (!payload || String(payload.meetingId || '') !== String(roomId)) return;
-      setAccessState({
-        ownerId: payload.ownerId || null,
-        activeController: payload.activeController || null,
-        pendingRequests: Array.isArray(payload.pendingRequests) ? payload.pendingRequests : [],
-      });
+      if (!payload.ownerId) return;
+      const ownerId = String(payload.ownerId);
+      setAccessStateByOwner((prev) => ({
+        ...prev,
+        [ownerId]: {
+          ownerId,
+          activeController: payload.activeController || null,
+          pendingRequests: Array.isArray(payload.pendingRequests) ? payload.pendingRequests : [],
+        },
+      }));
     };
 
     const handleIncoming = (payload) => {
       if (!payload || String(payload.meetingId || '') !== String(roomId)) return;
+      if (localAuthUserId && payload.ownerId && String(payload.ownerId) !== String(localAuthUserId)) return;
       setAccessPopup({
         requesterId: payload.requesterId,
         requestedAt: payload.requestedAt || Date.now(),
@@ -173,7 +186,6 @@ function VideoRoomInner({
     const handleGranted = (payload) => {
       if (!payload || String(payload.meetingId || '') !== String(roomId)) return;
       const ownerId = payload.ownerId;
-      const controllerId = payload.controllerId;
       setRequestingByTarget((prev) => {
         const next = { ...prev };
         if (ownerId) delete next[String(ownerId)];
@@ -215,7 +227,7 @@ function VideoRoomInner({
       socket.off('access-rejected', handleRejected);
       socket.off('access-error', handleErr);
     };
-  }, [roomId]);
+  }, [roomId, localAuthUserId]);
 
   const requestAccess = React.useCallback(
     (targetAuthUserId) => {
@@ -413,7 +425,7 @@ function VideoRoomInner({
           className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-slate-900/80 border border-slate-700 hover:bg-slate-800"
           title="Remote Access"
         >
-          <Monitor className="w-5 h-5 text-slate-200" />
+          <MousePointer2 className="w-5 h-5 text-slate-200" />
           {pendingIncomingCount > 0 && (
             <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] flex items-center justify-center border border-slate-900">
               {pendingIncomingCount}
@@ -438,10 +450,10 @@ function VideoRoomInner({
             <div className="border-r border-slate-800">
               <div className="px-4 py-2 text-[11px] uppercase tracking-widest text-slate-500 font-bold">Incoming Requests</div>
               <div className="px-4 pb-4 space-y-2 max-h-[340px] overflow-y-auto">
-                {String(accessState.ownerId || '') !== String(localAuthUserId || '') ? (
+                {String(myAccessState.ownerId || '') !== String(localAuthUserId || '') ? (
                   <div className="text-slate-500 text-xs">You can manage requests only for your own PC.</div>
-                ) : accessState.pendingRequests && accessState.pendingRequests.length > 0 ? (
-                  accessState.pendingRequests.map((r) => {
+                ) : myAccessState.pendingRequests && myAccessState.pendingRequests.length > 0 ? (
+                  myAccessState.pendingRequests.map((r) => {
                     const p = participantsByAuthId.get(String(r.userId));
                     const label = (p && (p.name || p.userName)) ? (p.name || p.userName) : shortId(String(r.userId));
                     return (
@@ -477,10 +489,10 @@ function VideoRoomInner({
                 <div className="rounded-md bg-slate-800/70 px-3 py-3">
                   <div className="text-[11px] text-slate-400">Currently controlling</div>
                   <div className="text-sm font-semibold text-slate-100">
-                    {accessState.activeController
+                    {myAccessState.activeController
                       ? (() => {
-                        const p = participantsByAuthId.get(String(accessState.activeController));
-                        return (p && (p.name || p.userName)) ? (p.name || p.userName) : shortId(String(accessState.activeController));
+                        const p = participantsByAuthId.get(String(myAccessState.activeController));
+                        return (p && (p.name || p.userName)) ? (p.name || p.userName) : shortId(String(myAccessState.activeController));
                       })()
                       : 'No one'}
                   </div>
@@ -489,10 +501,10 @@ function VideoRoomInner({
                       type="button"
                       onClick={revokeAccess}
                       disabled={
-                        !accessState.activeController ||
-                        String(accessState.ownerId || '') !== String(localAuthUserId || '')
+                        !myAccessState.activeController ||
+                        String(myAccessState.ownerId || '') !== String(localAuthUserId || '')
                       }
-                      className={`text-xs px-3 py-1.5 rounded-md text-white ${!accessState.activeController || String(accessState.ownerId || '') !== String(localAuthUserId || '')
+                      className={`text-xs px-3 py-1.5 rounded-md text-white ${!myAccessState.activeController || String(myAccessState.ownerId || '') !== String(localAuthUserId || '')
                           ? 'bg-slate-700 opacity-50 cursor-not-allowed'
                           : 'bg-red-600 hover:bg-red-500'
                         }`}
@@ -502,11 +514,11 @@ function VideoRoomInner({
                   </div>
                 </div>
 
-                {String(accessState.ownerId || '') === String(localAuthUserId || '') && (
+                {String(myAccessState.ownerId || '') === String(localAuthUserId || '') && (
                   <div className="rounded-md bg-slate-800/50 px-3 py-3">
                     <div className="text-[11px] text-slate-400">Quick switch</div>
                     <div className="mt-2 space-y-2 max-h-[180px] overflow-y-auto">
-                      {(accessState.pendingRequests || []).map((r) => {
+                      {(myAccessState.pendingRequests || []).map((r) => {
                         const p = participantsByAuthId.get(String(r.userId));
                         const label = (p && (p.name || p.userName)) ? (p.name || p.userName) : shortId(String(r.userId));
                         return (
@@ -521,7 +533,7 @@ function VideoRoomInner({
                           </button>
                         );
                       })}
-                      {(!accessState.pendingRequests || accessState.pendingRequests.length === 0) && (
+                      {(!myAccessState.pendingRequests || myAccessState.pendingRequests.length === 0) && (
                         <div className="text-slate-500 text-xs">No pending users.</div>
                       )}
                     </div>
@@ -698,7 +710,7 @@ function VideoRoomInner({
           </div>
         )}
 
-        {accessPopup && String(accessState.ownerId || '') === String(localAuthUserId || '') && (
+        {accessPopup && !!localAuthUserId && (
           <div className="pointer-events-auto absolute top-16 left-1/2 -translate-x-1/2 z-50">
             <div className="rounded-xl bg-slate-900/95 border border-slate-700 shadow-xl px-4 py-3 flex items-center gap-3">
               <div className="text-xs text-slate-200">
