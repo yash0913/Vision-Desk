@@ -70,7 +70,10 @@ export const desklinkApi = {
     const res = await fetch(`${API_BASE}/remote/meeting-request`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ toUserId: targetUserId }),
+      body: JSON.stringify({ 
+        toUserId: targetUserId,
+        fromMeeting: true  // ✅ Mark this as a meeting session
+      }),
     });
     return parseJSON(res);
   },
