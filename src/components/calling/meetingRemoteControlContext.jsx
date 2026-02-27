@@ -86,6 +86,8 @@ export function MeetingRemoteControlProvider({ children, meetingId }) {
 
     startAsCaller,
 
+    handleOffer,
+
     sendControlMessage,
 
     stopSession,
@@ -109,6 +111,18 @@ export function MeetingRemoteControlProvider({ children, meetingId }) {
     onRemoteRequest: (payload) => {
 
       // Incoming request for THIS user (owner side)
+      // Don't show incoming request modal for our own requests (meeting sessions)
+      console.log('[MeetingRemoteControl] Request check:', {
+        payloadFromUserId: payload.fromUserId,
+        currentUserId: user?._id,
+        currentUserIdAlt: user?.id,
+        shouldIgnore: payload.fromUserId === user?._id || payload.fromUserId === user?.id
+      });
+      
+      if (payload.fromUserId === user?._id || payload.fromUserId === user?.id) {
+        console.log('[MeetingRemoteControl] Ignoring own request (meeting session)');
+        return;
+      }
 
       setIncomingRequest({
 
