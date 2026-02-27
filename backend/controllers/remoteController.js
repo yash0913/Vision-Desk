@@ -500,17 +500,17 @@ const acceptRemoteSession = async (req, res) => {
 
 
 
-    // For meeting sessions, swap roles: agent should be caller (initiate screen capture)
-    // and meeting component should be receiver (receive video stream)
+    // For meeting sessions, web user is caller (media source) and phone user is receiver (viewer)
+
     const isMeetingSession = session.fromMeeting === true;
 
     const callerPayload = {
 
       ...sessionMetadata,
 
-      token: isMeetingSession ? receiverToken : callerToken, // Swap for meeting
+      token: callerToken,
 
-      role: 'caller', // Agent always caller for meeting
+      role: 'caller',
 
     };
 
@@ -540,7 +540,7 @@ const acceptRemoteSession = async (req, res) => {
 
       ...sessionMetadata,
 
-      token: isMeetingSession ? callerToken : receiverToken, // Swap for meeting
+      token: receiverToken,
 
       role: 'receiver',
 
@@ -566,18 +566,28 @@ const acceptRemoteSession = async (req, res) => {
 
     
 
-    // Emit to agent (caller) for meeting sessions, or to user for regular sessions
+    // Emit to web user (caller) - they create offer and send screen capture
+
     if (isMeetingSession) {
-      emitToDevice(session.receiverDeviceId, 'desklink-session-start', callerPayload);
-    } else {
+
       emitToUser(session.callerUserId, 'desklink-session-start', callerPayload);
+
+    } else {
+
+      emitToDevice(session.receiverDeviceId, 'desklink-session-start', callerPayload);
+
     }
 
-    // Emit to meeting user (receiver) for meeting sessions, or to agent for regular sessions
+    // Emit to phone user (receiver) - they wait for offer and watch screen
+
     if (isMeetingSession) {
-      emitToUser(session.callerUserId, 'desklink-session-start', receiverPayload);
+
+      emitToUser(session.receiverUserId, 'desklink-session-start', receiverPayload);
+
     } else {
+
       emitToDevice(session.receiverDeviceId, 'desklink-session-start', receiverPayload);
+
     }
 
 
@@ -974,19 +984,19 @@ const requestMeetingRemoteSession = async (req, res) => {
 
       sessionId: new mongoose.Types.ObjectId().toString(),
 
-      callerUserId: fromUserId,
+      callerUserId: effectiveToUserId,        // Web user is caller (media source, creates offer)
 
-      receiverUserId: effectiveToUserId,
+      receiverUserId: fromUserId,              // Phone user is receiver (viewer)
 
-      callerDeviceId: fromDeviceId,
+      callerDeviceId: receiverDevice.deviceId, // Web user's device (media source)
 
-      receiverDeviceId: receiverDevice.deviceId,
+      receiverDeviceId: fromDeviceId,           // Phone user's device (viewer)
 
       status: 'pending',
 
       startedAt: new Date(),
 
-      fromMeeting: true,  // ✅ Mark this as a meeting session for role swapping
+      fromMeeting: true,  // ✅ Mark this as a meeting session
 
     });
 

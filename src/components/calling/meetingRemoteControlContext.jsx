@@ -86,8 +86,6 @@ export function MeetingRemoteControlProvider({ children, meetingId }) {
 
     startAsCaller,
 
-    handleOffer,
-
     sendControlMessage,
 
     stopSession,
@@ -444,11 +442,11 @@ export function MeetingRemoteControlProvider({ children, meetingId }) {
 
         }
 
-        if (payload.role !== 'receiver') {
+        if (payload.role !== 'caller') {
 
-          console.log('[MeetingRemoteControl] ❌ Not receiver role, skipping');
+          console.log('[MeetingRemoteControl] ❌ Not caller role, skipping');
 
-          // Agent side will handle caller role; we only handle receiver here
+          // Only handle caller role (media source) - phone user handles receiver role
 
           return;
 
@@ -456,7 +454,7 @@ export function MeetingRemoteControlProvider({ children, meetingId }) {
 
 
 
-        console.log('[MeetingRemoteControl] ✅ Starting session as receiver');
+        console.log('[MeetingRemoteControl] ✅ Starting session as caller');
 
 
 
@@ -494,11 +492,11 @@ export function MeetingRemoteControlProvider({ children, meetingId }) {
 
 
 
-        console.log('[MeetingRemoteControl] 🚀 Calling handleOffer...');
+        console.log('[MeetingRemoteControl] 🚀 Calling startAsCaller...');
 
-        await handleOffer(config);
+        await startAsCaller(config);
 
-        console.log('[MeetingRemoteControl] ✅ handleOffer completed');
+        console.log('[MeetingRemoteControl] ✅ startAsCaller completed');
 
       } catch (err) {
 
