@@ -82,7 +82,7 @@ function VideoRoomInner({
     permissions,
     sessionConfig,
     sendControlMessage,
-    requestControlForUser,
+    requestControl,
     incomingRequest,
     acceptIncomingRequest,
     rejectIncomingRequest,
@@ -605,12 +605,12 @@ function VideoRoomInner({
               </button>
             </div>
             <div className="flex-1 bg-slate-950/80 p-2">
-              {remoteDesktopStream && sessionConfig ? (
+              {remoteDesktopStream ? (
                 <RemoteVideoArea
                   stream={remoteDesktopStream}
                   onControlMessage={sendControlMessage}
                   sessionId={sessionConfig?.sessionId || ''}
-                  token={sessionConfig?.sessionToken || ''}
+                  token={roomId}
                   permissions={permissions}
                   stats={remoteStats}
                 />
@@ -646,23 +646,13 @@ function VideoRoomInner({
                             </div>
                             <div className="flex flex-col items-end gap-0.5">
                               <button
-                                type="button"
-                                disabled={!p.targetUserId || !isAgentOnline}
+                                className="bg-blue-500 text-white px-3 py-1 rounded disabled:opacity-50"
+                                disabled={!isAgentOnline}
                                 onClick={() =>
-                                  p.targetUserId &&
-                                  requestControlForUser({
-                                    targetUserId: p.targetUserId,
-                                    targetName: p.name || 'Participant',
-                                    senderAuthId: allParticipants.find((me) => me.id === userId)?.authUserId,
-                                  })
+                                  requestControl()
                                 }
-                                className={`text-[10px] px-2 py-1 rounded-md text-white transition-colors ${!p.targetUserId || !isAgentOnline
-                                  ? 'bg-slate-700 opacity-50 cursor-not-allowed'
-                                  : 'bg-purple-600 hover:bg-purple-500'
-                                  }`}
-                                title={!isAgentOnline ? 'User agent must be running' : 'Request Control'}
                               >
-                                Request
+                                Request Control
                               </button>
                             </div>
                           </div>
@@ -973,8 +963,19 @@ function VideoRoomInner({
 }
 
 export default function VideoRoom(props) {
+  const derivedLocalAuthUserId = (() => {
+    try {
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem('vd_user_profile') : null;
+      if (!raw) return null;
+      const profile = JSON.parse(raw);
+      return profile?.id ? String(profile.id) : null;
+    } catch {
+      return null;
+    }
+  })();
+
   return (
-    <MeetingRemoteControlProvider meetingId={props.roomId}>
+    <MeetingRemoteControlProvider meetingId={props.roomId} localAuthUserId={derivedLocalAuthUserId}>
       <VideoRoomInner {...props} />
       <WebRTCDebugPanel />
     </MeetingRemoteControlProvider>

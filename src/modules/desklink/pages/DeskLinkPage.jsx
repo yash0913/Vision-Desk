@@ -122,22 +122,6 @@ export default function DeskLinkPage() {
     onRemoteResponse: handleRemoteResponse,
   });
 
-  // ✅ Register this device on the socket, AFTER socket + localDeviceId exist
-  useEffect(() => {
-    if (!socket) return;
-    if (!localDeviceId) return;
-
-    console.log('[DeskLink] registering device on socket', localDeviceId);
-
-    socket.emit('register', {
-      deviceId: localDeviceId,
-      platform: 'web',
-      label: 'DeskLink Web',
-      osInfo: typeof window !== 'undefined' ? window.navigator.userAgent : 'unknown',
-      deviceName: user?.fullName || 'Web Client',
-    });
-  }, [socket, localDeviceId, user]);
-
   const sendRemoteRequest = async (contact) => {
     if (!contact) {
       console.warn('[DeskLink] sendRemoteRequest called without contact');

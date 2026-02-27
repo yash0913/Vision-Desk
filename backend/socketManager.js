@@ -11,6 +11,7 @@ const User = require('./models/User');
 const Message = require('./models/Message');
 const RemoteSession = require('./models/RemoteSession');
 const Device = require('./models/Device');
+const MeetingControlSession = require('./models/MeetingControlSession');
 const { verifySessionToken, createSessionToken } = require('./utils/sessionToken');
 
 let ioInstance = null;
@@ -18,6 +19,7 @@ let roomsMap = null; // Map<roomId, Map<userId, {socketId, userName, isHost, aut
 const onlineUsersByPhone = new Map(); // Map<phoneString, Set<socketId>>
 const onlineUsersById = new Map(); // Map<userId, Set<socketId>>
 const onlineDevicesById = new Map(); // Map<deviceId, Set<socketId>>
+const deviceRegistryById = new Map(); // Map<deviceId, { userId, deviceType, socketId, lastSeen, isOnline }>
 const pendingSignalsByDevice = new Map(); // Map<deviceId, Array<{event,payload}>>
 const metrics = { activeSessions: 0, offersRelayed: 0, iceFailures: 0, datachannelMsgs: 0 };
 
@@ -66,14 +68,44 @@ function emitToUser(userId, event, payload) {
   });
 }
 
+function getDeviceRegistrySnapshotForUser(userId) {
+  const out = [];
+  for (const [deviceId, meta] of deviceRegistryById.entries()) {
+    if (meta && String(meta.userId) === String(userId)) {
+      out.push({ deviceId, ...meta });
+    }
+  }
+  out.sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+  return out;
+}
+
 function emitToDevice(deviceId, event, payload) {
   if (!ioInstance || !deviceId) return;
-  const sockets = onlineDevicesById.get(String(deviceId));
-  if (!sockets) return;
-  sockets.forEach((socketId) => {
-    const target = ioInstance.sockets.sockets.get(socketId);
-    if (target) {
-      target.emit(event, payload);
+  const devId = String(deviceId);
+  const meta = deviceRegistryById.get(devId);
+  const isNativeOnline = !!meta && meta.isOnline === true && meta.deviceType === 'native-agent';
+  if (!isNativeOnline) {
+    console.warn(`[ROUTING] Cannot emit ${event} to ${devId} - native device not online/registered`);
+    const hostUserId = payload && (payload.hostUserId || payload.toUserId || payload.ownerUserId || payload.userId);
+    if (hostUserId) {
+      console.warn('[ROUTING] Full registry snapshot for hostUserId:', hostUserId, getDeviceRegistrySnapshotForUser(hostUserId));
+    } else {
+      console.warn('[ROUTING] Full device registry keys:', Array.from(deviceRegistryById.keys()));
+    }
+    return;
+  }
+
+  console.log(`[ROUTING] Emitting ${event} to ${devId} (native-agent)`);
+
+  const set = onlineDevicesById.get(devId);
+  if (!set) {
+    console.warn(`[ROUTING] Device ${devId} meta exists but socket set missing`);
+    return;
+  }
+  set.forEach((socketId) => {
+    const socket = ioInstance.sockets.sockets.get(socketId);
+    if (socket) {
+      socket.emit(event, payload);
     }
   });
 }
@@ -98,7 +130,6 @@ async function validateSessionAccess(sessionId, userId) {
 
   return session;
 }
-
 
 function createSocketServer(server, clientOrigin) {
   const io = new Server(server, {
@@ -239,18 +270,38 @@ function createSocketServer(server, clientOrigin) {
     trackUserSocket(onlineUsersById, socket.userId, socket.id);
 
     // DeskLink registration
-    socket.on('register', async ({ deviceId, platform, label, osInfo, deviceName }) => {
+    socket.on('register', async ({ deviceId, deviceType, platform, label, osInfo, deviceName }) => {
       try {
         if (!deviceId) return;
 
         const devId = String(deviceId);
+        const effectiveType = String(deviceType || '');
+
+        // ONLY native agents are devices.
+        if (effectiveType !== 'native-agent') {
+          console.log('[device] ignoring non-native register', {
+            deviceId: devId,
+            deviceType: effectiveType,
+            socketId: socket.id,
+          });
+          return;
+        }
+
         socket.data.deviceId = devId;
 
-        // Track in-memory mapping for signaling
+        // Track in-memory mapping for signaling (native-only)
         trackUserSocket(onlineDevicesById, devId, socket.id);
 
-        // Auto-register or update device record in MongoDB
         const userId = socket.userId ? String(socket.userId) : null;
+        deviceRegistryById.set(devId, {
+          userId: userId || 'unknown',
+          deviceType: effectiveType,
+          socketId: socket.id,
+          lastSeen: Date.now(),
+          isOnline: true,
+        });
+
+        // Auto-register or update device record in MongoDB
         const now = new Date();
 
         if (!userId) {
@@ -270,6 +321,7 @@ function createSocketServer(server, clientOrigin) {
               deviceName: deviceName || label || 'Agent Device',
               osInfo: osInfo || platform || 'Unknown',
               platform: platform || '',
+              deviceType: effectiveType,
               deleted: false,
               blocked: false,
               label: label || 'Agent Device',
@@ -350,8 +402,29 @@ function createSocketServer(server, clientOrigin) {
   */
 
     // WebRTC Offer
-    socket.on('webrtc-offer', async ({ sessionId, fromUserId, fromDeviceId, toDeviceId, sdp, token }) => {
+    socket.on('webrtc-offer', async ({ meetingId, sessionId, fromUserId, fromDeviceId, toDeviceId, sdp, token }) => {
       try {
+        // Meeting-native flow: agent emits { meetingId, fromDeviceId, sdp }
+        if (meetingId && !toDeviceId) {
+          const roomId = String(meetingId);
+
+          const hostSession = await MeetingControlSession.findOne({ meetingId: roomId, isActive: true }).sort({ createdAt: -1 });
+          if (!hostSession) {
+            console.error('[webrtc-offer] meeting flow: host mapping missing', roomId);
+            return;
+          }
+
+          const payload = {
+            meetingId: roomId,
+            fromDeviceId,
+            sdp,
+          };
+
+          console.log('[webrtc-offer] meeting flow: broadcasting offer to meeting', roomId);
+          io.to(roomId).emit('webrtc-offer', payload);
+          return;
+        }
+
         console.log(`[webrtc-offer] Session: ${sessionId}, From: ${fromDeviceId} → To: ${toDeviceId}, token present: ${!!token}`);
         console.log(`[webrtc-offer] Token value (first 50 chars):`, token ? token.substring(0, 50) : 'null');
         console.log(`[webrtc-offer] Token type:`, typeof token);
@@ -418,8 +491,28 @@ function createSocketServer(server, clientOrigin) {
     });
 
     // WebRTC Answer
-    socket.on('webrtc-answer', async ({ sessionId, fromUserId, fromDeviceId, toDeviceId, sdp, token }) => {
+    socket.on('webrtc-answer', async ({ meetingId, sessionId, fromUserId, fromDeviceId, toDeviceId, sdp, token }) => {
       try {
+        // Meeting-native flow: browser answers with { meetingId, sdp }
+        if (meetingId && !toDeviceId) {
+          const roomId = String(meetingId);
+          const hostSession = await MeetingControlSession.findOne({ meetingId: roomId, isActive: true }).sort({ createdAt: -1 });
+          if (!hostSession) {
+            console.error('[webrtc-answer] meeting flow: host mapping missing', roomId);
+            return;
+          }
+
+          const hostDeviceId = String(hostSession.hostDeviceId);
+          const payload = {
+            meetingId: roomId,
+            sdp,
+          };
+
+          console.log('[webrtc-answer] meeting flow: relaying answer to host device', hostDeviceId);
+          emitToDevice(hostDeviceId, 'webrtc-answer', payload);
+          return;
+        }
+
         console.log(`[webrtc-answer] Session: ${sessionId}, From: ${fromDeviceId} → To: ${toDeviceId}`);
 
         if (token) {
@@ -466,12 +559,25 @@ function createSocketServer(server, clientOrigin) {
     });
 
     // WebRTC ICE Candidate
-    socket.on('webrtc-ice', async ({ sessionId, fromUserId, fromDeviceId, toDeviceId, candidate, token }) => {
+    socket.on('webrtc-ice', async ({ meetingId, sessionId, fromUserId, fromDeviceId, toDeviceId, candidate, token }) => {
       try {
+        // Meeting-native flow: browser sends ICE with { meetingId, candidate }
+        if (meetingId && !toDeviceId) {
+          const roomId = String(meetingId);
+          const hostSession = await MeetingControlSession.findOne({ meetingId: roomId, isActive: true }).sort({ createdAt: -1 });
+          if (!hostSession) {
+            return;
+          }
+          const hostDeviceId = String(hostSession.hostDeviceId);
+          emitToDevice(hostDeviceId, 'webrtc-ice', { meetingId: roomId, candidate });
+          return;
+        }
+
         if (!token) {
           // Skip candidate if token missing
           return;
         }
+
         try {
           const decoded = verifySessionToken(token);
           if (!decoded) return;
@@ -554,6 +660,7 @@ function createSocketServer(server, clientOrigin) {
 
     // User joined room
     socket.on('user-joined', ({ roomId, userId, userName, isHost }) => {
+
       socket.join(roomId);
       socket.data.roomId = roomId;
       socket.data.userId = userId; // meeting-scoped user id (client-generated)
@@ -612,6 +719,101 @@ function createSocketServer(server, clientOrigin) {
       });
 
       console.log(`User ${userName} (${userId}) joined room ${roomId}`);
+
+      // Host -> create/refresh MeetingControlSession mapping (native-only device)
+      if (isHost) {
+        (async () => {
+          try {
+            const hostUserId = socket.userId;
+            if (!hostUserId || String(hostUserId).startsWith('guest-')) {
+              throw new Error('Host must be authenticated');
+            }
+
+            const hostDevice = await Device.findOne({
+              userId: String(hostUserId),
+              deleted: false,
+              blocked: false,
+              deviceType: 'native-agent',
+            }).sort({ lastOnline: -1 });
+
+            if (!hostDevice) {
+              throw new Error('Host native agent not online');
+            }
+
+            // Ensure old sessions are marked inactive
+            await MeetingControlSession.updateMany(
+              { meetingId: String(roomId), isActive: true },
+              { $set: { isActive: false, updatedAt: new Date() } }
+            );
+
+            await MeetingControlSession.create({
+              meetingId: String(roomId),
+              hostUserId: hostUserId,
+              hostDeviceId: String(hostDevice.deviceId),
+              isActive: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+
+            console.log('[MeetingControl] session created', {
+              meetingId: String(roomId),
+              hostUserId: String(hostUserId),
+              hostDeviceId: String(hostDevice.deviceId),
+            });
+          } catch (err) {
+            console.error('[MeetingControl] failed to create host mapping:', err && err.message);
+          }
+        })();
+      }
+    });
+
+    // Participant requests control of meeting host device
+    socket.on('request-control', async ({ meetingId }) => {
+      try {
+        const roomId = String(meetingId || socket.data.roomId || '');
+        const requesterAuthUserId = socket.userId;
+
+        if (!roomId) {
+          socket.emit('control-error', { message: 'meetingId is required' });
+          return;
+        }
+
+        if (!requesterAuthUserId || String(requesterAuthUserId).startsWith('guest-')) {
+          socket.emit('control-error', { message: 'Not authenticated' });
+          return;
+        }
+
+        // Validate participant belongs to meeting
+        if (!isUserInMeeting(roomId, requesterAuthUserId)) {
+          socket.emit('control-error', { message: 'Not in meeting' });
+          return;
+        }
+
+        const session = await MeetingControlSession.findOne({
+          meetingId: roomId,
+          isActive: true,
+        }).sort({ createdAt: -1 });
+
+        if (!session) {
+          socket.emit('control-error', { message: 'Host native agent not online' });
+          return;
+        }
+
+        const hostDeviceId = String(session.hostDeviceId);
+
+        const payload = {
+          meetingId: roomId,
+          hostUserId: String(session.hostUserId),
+          hostDeviceId,
+          requestedByUserId: String(requesterAuthUserId),
+        };
+
+        emitToDevice(hostDeviceId, 'request-control', payload);
+        emitToDevice(hostDeviceId, 'remote-access-request', payload);
+      } catch (err) {
+        console.error('[request-control] error:', err && err.message);
+        socket.emit('control-error', { message: err.message || 'request-control failed' });
+      }
     });
 
     // Send offer - target specific user

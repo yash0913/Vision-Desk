@@ -19,23 +19,7 @@ export async function getNativeDeviceId() {
     return existing;
   }
 
-  // 3) 🔥 Browser-only fallback: generate a deterministic web device id
-  try {
-    const raw = localStorage.getItem('vd_user_profile');
-    if (raw) {
-      const profile = JSON.parse(raw);
-      if (profile.id) {
-        const webId = `web-${profile.id}`;
-        localStorage.setItem('desklinkDeviceId', webId);
-        console.log('[DeskLink] using browser fallback deviceId:', webId);
-        return webId;
-      }
-    }
-  } catch (e) {
-    console.error('[DeskLink] failed to create fallback deviceId', e);
-  }
-
-  // 4) Last resort: empty string
+  // 3) Last resort: empty string
   return '';
 }
 

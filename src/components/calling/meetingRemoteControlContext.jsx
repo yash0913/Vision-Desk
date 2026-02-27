@@ -1,12 +1,8 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-
-import { useDeskLinkWebRTC } from '../../modules/desklink/hooks/useDeskLinkWebRTC.js';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 
 import { useDeskLinkSocket } from '../../modules/desklink/hooks/useDeskLinkSocket.js';
 
 import { desklinkApi } from '../../modules/desklink/services/desklink.api.js';
-
-import { getNativeDeviceId } from '../../modules/desklink/utils/nativeBridge.js';
 
 import { useAuth } from '../../modules/auth/hooks/useAuth.js';
 
@@ -16,9 +12,16 @@ const MeetingRemoteControlContext = createContext(null);
 
 
 
-export function MeetingRemoteControlProvider({ children, meetingId }) {
+export function MeetingRemoteControlProvider({ children, meetingId, localAuthUserId }) {
 
-  const { user, token } = useAuth();
+  const { token } = useAuth();
+
+
+
+  if (!localAuthUserId) {
+    console.error('[MeetingRemoteControl] CRITICAL: localAuthUserId missing - cannot proceed');
+    throw new Error('localAuthUserId is required');
+  }
 
 
 
@@ -28,75 +31,12 @@ export function MeetingRemoteControlProvider({ children, meetingId }) {
 
   const [permissions, setPermissions] = useState({ allowControl: true, viewOnly: false });
 
-  const [localDeviceId, setLocalDeviceId] = useState('');
-
-  const [pendingSession, setPendingSession] = useState(null); // controller side
-
   const [incomingRequest, setIncomingRequest] = useState(null); // owner side
 
+  const pcRef = useRef(null);
+  const [remoteStream, setRemoteStream] = useState(null);
 
 
-  // Load native device id (DeskLink agent id) for this machine
-
-  useEffect(() => {
-
-    let cancelled = false;
-
-    const load = async () => {
-
-      try {
-
-        const id = await getNativeDeviceId();
-
-        if (!cancelled && id) {
-
-          setLocalDeviceId(id);
-
-        }
-
-      } catch (err) {
-
-        console.warn('[MeetingRemoteControl] failed to resolve native device id', err);
-
-      }
-
-    };
-
-    load();
-
-    return () => {
-
-      cancelled = true;
-
-    };
-
-  }, []);
-
-
-
-  const {
-
-    connectionState,
-
-    iceConnectionState,
-
-    remoteStream,
-
-    stats,
-
-    startAsCaller,
-
-    sendControlMessage,
-
-    stopSession,
-
-    setOnDataMessage,
-
-    setOnConnected,
-
-    setOnDisconnected,
-
-  } = useDeskLinkWebRTC();
 
 
 
@@ -109,18 +49,30 @@ export function MeetingRemoteControlProvider({ children, meetingId }) {
     onRemoteRequest: (payload) => {
 
       // Incoming request for THIS user (owner side)
+
       // Don't show incoming request modal for our own requests (meeting sessions)
+
       console.log('[MeetingRemoteControl] Request check:', {
+
         payloadFromUserId: payload.fromUserId,
-        currentUserId: user?._id,
-        currentUserIdAlt: user?.id,
-        shouldIgnore: payload.fromUserId === user?._id || payload.fromUserId === user?.id
+
+        currentUserId: localAuthUserId,
+
+        shouldIgnore: payload.fromUserId === localAuthUserId
+
       });
-      
-      if (payload.fromUserId === user?._id || payload.fromUserId === user?.id) {
+
+
+
+      if (payload.fromUserId === localAuthUserId) {
+
         console.log('[MeetingRemoteControl] Ignoring own request (meeting session)');
+
         return;
+
       }
+
+
 
       setIncomingRequest({
 
@@ -138,33 +90,55 @@ export function MeetingRemoteControlProvider({ children, meetingId }) {
 
     onRemoteResponse: (payload) => {
 
-      // Pending outgoing request updated (accepted/rejected/ended)
-
-      if (!pendingSession || payload.sessionId !== pendingSession.sessionId) return;
-
-
-
-      if (payload.status === 'rejected') {
-
-        // Simple UX for now; can be replaced by toast/snackbar later
-
-        console.warn('[MeetingRemoteControl] Remote user rejected request');
-
-        setPendingSession(null);
-
-      }
-
-
-
-      if (payload.status === 'ended') {
-
-        setPendingSession(null);
-
-      }
+      return;
 
     },
 
   });
+
+
+
+
+
+  const [connectionState, setConnectionState] = useState('idle');
+  const [iceConnectionState, setIceConnectionState] = useState('new');
+
+  const stopSession = useCallback(() => {
+    try {
+      if (pcRef.current) {
+        pcRef.current.onicecandidate = null;
+        pcRef.current.ontrack = null;
+        pcRef.current.oniceconnectionstatechange = null;
+        pcRef.current.close();
+      }
+    } catch (e) {
+      // ignore
+    }
+    pcRef.current = null;
+    setRemoteStream(null);
+    setConnectionState('closed');
+    setIceConnectionState('closed');
+  }, []);
+
+  const sendControlMessage = useCallback(() => {
+    return;
+  }, []);
+
+  const setOnDataMessage = useCallback(() => {
+    return;
+  }, []);
+
+  const setOnConnected = useCallback(() => {
+    return;
+  }, []);
+
+  const setOnDisconnected = useCallback(() => {
+    return;
+  }, []);
+
+  const stats = null;
+
+
 
 
 
@@ -180,77 +154,15 @@ export function MeetingRemoteControlProvider({ children, meetingId }) {
 
 
 
-  const beginControl = useCallback(
-
-    async (config) => {
-
-      if (!config || !config.sessionId) {
-
-        console.warn('[MeetingRemoteControl] beginControl called without session config');
-
-        return;
-
-      }
 
 
-
-      let effectiveConfig = { ...config };
-
-
-
-      // If no ICE servers were provided by the caller, fetch them from the backend
-
-      // so that in-meeting DeskLink sessions benefit from the same TURN/STUN
-
-      // configuration as the rest of the app.
-
-      if (!effectiveConfig.iceServers && token) {
-
-        try {
-
-          const data = await desklinkApi.getTurnToken(token);
-
-          if (data && Array.isArray(data.iceServers) && data.iceServers.length > 0) {
-
-            // Add Google STUN servers to the backend response for better connectivity
-
-            const enhancedIceServers = [
-
-              { urls: "stun:stun.l.google.com:19302" },
-
-              { urls: "stun:stun1.l.google.com:19302" },
-
-              { urls: "stun:stun2.l.google.com:19302" },
-
-              ...data.iceServers
-
-            ];
-
-            effectiveConfig = { ...effectiveConfig, iceServers: enhancedIceServers };
-
-          }
-
-        } catch (err) {
-
-          console.error('[MeetingRemoteControl] Failed to fetch ICE servers for DeskLink session', err);
-
-        }
-
-      }
-
-
-
-      setSessionConfig(effectiveConfig);
-
-      setIsPanelOpen(true);
-
-      startAsCaller(effectiveConfig);
-
-    },
-
-    [startAsCaller, token]
-
-  );
+  const beginControl = useCallback(async (config) => {
+    if (!config || !config.sessionId) {
+      console.warn('[MeetingRemoteControl] beginControl called without session config');
+    }
+    setSessionConfig(config);
+    setIsPanelOpen(true);
+  }, [token]);
 
 
 
@@ -264,83 +176,113 @@ export function MeetingRemoteControlProvider({ children, meetingId }) {
 
 
 
-  // Controller: request control of another participant's PC by backend user id (webId-only mode)
+  // Meeting-native WebRTC receiver
+  useEffect(() => {
+    if (!socket) return;
+    if (!meetingId) return;
 
-  // For in-meeting remote access we intentionally do NOT send fromDeviceId. The backend
+    const currentMeetingId = String(meetingId);
 
-  // will resolve the caller's active deviceId based on the authenticated user.
-
-  const requestControlForUser = useCallback(
-
-    async ({ targetUserId, targetName, senderAuthId }) => {
-
-      // Relaxed auth check: allow if we have a token OR if we have senderAuthId (anonymous)
-
-      if (!token && !senderAuthId) {
-
-        console.warn('[MeetingRemoteControl] Missing auth context for requestControlForUser');
-
-        return;
-
-      }
-
-      if (!targetUserId) {
-
-        console.warn('[MeetingRemoteControl] No targetUserId provided for requestControlForUser');
-
-        return;
-
-      }
-
+    const handleOffer = async (payload) => {
       try {
+        if (!payload || String(payload.meetingId || '') !== currentMeetingId) return;
+        if (!payload.sdp) return;
 
-        const { session } = await desklinkApi.requestMeetingRemote(token, targetUserId, senderAuthId);
+        console.log('[MEETING] Received webrtc-offer');
 
-        setPendingSession({
+        stopSession();
 
-          sessionId: session.sessionId,
+        const pc = new RTCPeerConnection();
+        pcRef.current = pc;
+        setConnectionState('connecting');
 
-          targetUserId,
+        pc.oniceconnectionstatechange = () => {
+          setIceConnectionState(pc.iceConnectionState);
+        };
 
-          targetName,
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit('webrtc-ice', {
+              meetingId: currentMeetingId,
+              candidate: event.candidate,
+            });
+          }
+        };
 
+        pc.ontrack = (event) => {
+          const stream = event && event.streams && event.streams[0] ? event.streams[0] : null;
+          if (stream) {
+            setRemoteStream(stream);
+          }
+        };
+
+        await pc.setRemoteDescription(
+          new RTCSessionDescription({ type: 'offer', sdp: payload.sdp })
+        );
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        console.log('[MEETING] Sending webrtc-answer');
+        socket.emit('webrtc-answer', {
+          meetingId: currentMeetingId,
+          sdp: answer.sdp,
         });
 
+        setSessionConfig({ sessionId: currentMeetingId, sessionToken: token || currentMeetingId });
         setIsPanelOpen(true);
 
+        setConnectionState('connected');
       } catch (err) {
-
-        console.error('[MeetingRemoteControl] requestControlForUser failed', err);
-
+        console.error('[MEETING] Error handling webrtc-offer', err);
       }
+    };
 
-    },
+    const handleIce = async (payload) => {
+      try {
+        if (!payload || String(payload.meetingId || '') !== currentMeetingId) return;
+        if (!payload.candidate) return;
+        const pc = pcRef.current;
+        if (!pc) return;
+        await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+      } catch (err) {
+        console.error('[MEETING] Error adding ICE', err);
+      }
+    };
 
-    [token] // Removed 'user' dependency as we might use senderAuthId
+    socket.on('webrtc-offer', handleOffer);
+    socket.on('webrtc-ice', handleIce);
 
-  );
+    return () => {
+      socket.off('webrtc-offer', handleOffer);
+      socket.off('webrtc-ice', handleIce);
+      stopSession();
+    };
+  }, [socket, meetingId, stopSession]);
 
 
 
-  const checkUserAgentStatus = useCallback(async (targetUserId) => {
 
-    if (!token || !targetUserId) return 'offline';
 
-    try {
+  // Meeting remote control: request backend to start control session.
 
-      const data = await desklinkApi.getUserAgentStatus(token, targetUserId, meetingId);
+  const requestControl = useCallback(() => {
 
-      return data?.status || 'offline';
+    if (!socket) return;
 
-    } catch (err) {
+    if (!meetingId) return;
 
-      console.warn('[MeetingRemoteControl] checkUserAgentStatus failed', err);
+    socket.emit('request-control', { meetingId });
 
-      return 'offline';
+  }, [socket, meetingId]);
 
-    }
 
-  }, [token, meetingId]);
+
+  const checkUserAgentStatus = useCallback(async () => {
+    return 'unknown';
+  }, []);
+
+
 
 
 
@@ -350,15 +292,13 @@ export function MeetingRemoteControlProvider({ children, meetingId }) {
 
     async (acceptPermissions) => {
 
-      if (!incomingRequest || !token || !localDeviceId) return;
+      if (!incomingRequest || !token) return;
 
       try {
 
         const payload = {
 
           sessionId: incomingRequest.sessionId,
-
-          receiverDeviceId: localDeviceId,
 
           permissions: acceptPermissions,
 
@@ -376,7 +316,7 @@ export function MeetingRemoteControlProvider({ children, meetingId }) {
 
     },
 
-    [incomingRequest, token, localDeviceId]
+    [incomingRequest, token]
 
   );
 
@@ -416,110 +356,6 @@ export function MeetingRemoteControlProvider({ children, meetingId }) {
 
 
 
-  // Handle desklink-session-start -> start WebRTC as caller when we are controller
-
-  useEffect(() => {
-
-    if (!socket) return;
-
-
-
-    const handleSessionStart = async (payload) => {
-
-      console.log('[MeetingRemoteControl] ===== SESSION START RECEIVED =====');
-
-      console.log('[MeetingRemoteControl] payload:', payload);
-
-      
-
-      try {
-
-        if (!payload || !payload.sessionId) {
-
-          console.log('[MeetingRemoteControl] ❌ No payload or sessionId');
-
-          return;
-
-        }
-
-        if (payload.role !== 'caller') {
-
-          console.log('[MeetingRemoteControl] ❌ Not caller role, skipping');
-
-          // Only handle caller role (media source) - phone user handles receiver role
-
-          return;
-
-        }
-
-
-
-        console.log('[MeetingRemoteControl] ✅ Starting session as caller');
-
-
-
-        const effectiveUserId = user ? (user._id || user.id) : 'anon-caller';
-
-        const config = {
-
-          sessionId: payload.sessionId,
-
-          authToken: token,
-
-          sessionToken: payload.token,
-
-          localUserId: effectiveUserId,
-
-          localDeviceId: payload.callerDeviceId,
-
-          remoteDeviceId: payload.receiverDeviceId,
-
-        };
-
-
-
-        console.log('[MeetingRemoteControl] WebRTC config:', config);
-
-
-
-        if (payload.permissions) {
-
-          console.log('[MeetingRemoteControl] Setting permissions:', payload.permissions);
-
-          setPermissions((prev) => ({ ...prev, ...payload.permissions }));
-
-        }
-
-
-
-        console.log('[MeetingRemoteControl] 🚀 Calling startAsCaller...');
-
-        await startAsCaller(config);
-
-        console.log('[MeetingRemoteControl] ✅ startAsCaller completed');
-
-      } catch (err) {
-
-        console.error('[MeetingRemoteControl] desklink-session-start handler error', err);
-
-      }
-
-    };
-
-
-
-    socket.on('desklink-session-start', handleSessionStart);
-
-    return () => {
-
-      socket.off('desklink-session-start', handleSessionStart);
-
-    };
-
-  }, [socket, token, user, startAsCaller]);
-
-
-
   const value = {
 
     // UI state
@@ -541,8 +377,6 @@ export function MeetingRemoteControlProvider({ children, meetingId }) {
     beginControl,
 
     endControl,
-
-    pendingSession,
 
 
 
@@ -566,7 +400,7 @@ export function MeetingRemoteControlProvider({ children, meetingId }) {
 
     // Request flow from controller side
 
-    requestControlForUser,
+    requestControl,
 
     checkUserAgentStatus,
 

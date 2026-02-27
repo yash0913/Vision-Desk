@@ -38,6 +38,13 @@ const deviceSchema = new mongoose.Schema(
       maxlength: 60,
       default: '',
     },
+
+    deviceType: {
+      type: String,
+      trim: true,
+      default: 'native-agent',
+      index: true,
+    },
     lastOnline: {
       type: Date,
       default: Date.now,
@@ -65,6 +72,7 @@ const deviceSchema = new mongoose.Schema(
 );
 
 deviceSchema.index({ userId: 1, deviceId: 1 });
+deviceSchema.index({ userId: 1, deviceType: 1, lastOnline: -1 });
 
 module.exports = mongoose.model('Device', deviceSchema);
 

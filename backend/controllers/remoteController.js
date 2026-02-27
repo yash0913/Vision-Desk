@@ -920,6 +920,8 @@ const requestMeetingRemoteSession = async (req, res) => {
 
         blocked: false,
 
+        deviceType: 'native-agent',
+
       });
 
     } else {
@@ -931,6 +933,8 @@ const requestMeetingRemoteSession = async (req, res) => {
         deleted: false,
 
         blocked: false,
+
+        deviceType: 'native-agent',
 
       }).sort({ lastOnline: -1 });
 
@@ -944,7 +948,7 @@ const requestMeetingRemoteSession = async (req, res) => {
 
         .status(404)
 
-        .json({ message: 'Receiver device not found or offline' });
+        .json({ message: 'No native agent online for this user' });
 
     }
 

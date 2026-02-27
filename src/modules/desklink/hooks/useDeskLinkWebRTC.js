@@ -362,12 +362,8 @@ export function useDeskLinkWebRTC() {
 
             const onLocalConnect = () => {
               console.log('[WebRTC] Socket connected', socket.id);
-              if (localDeviceId) {
-                socket.emit('register', { deviceId: localDeviceId });
-                console.log('[WebRTC] Register emitted for', localDeviceId);
-              }
               socket.off('connect', onLocalConnect);
-              // ✅ Wait a bit after register to ensure server processes it
+              // Wait a bit after register to ensure server processes it
               setTimeout(() => resolve(), 300);
             };
             
@@ -386,10 +382,10 @@ export function useDeskLinkWebRTC() {
 
         socketRef.current = socket;
 
-        // ✅ WAIT for socket to be fully ready
+        // WAIT for socket to be fully ready
         console.log('[WebRTC] Waiting for socket to be ready...');
         await socketReady;
-        console.log('[WebRTC] ✓ Socket ready, proceeding with WebRTC setup');
+        console.log('[WebRTC] Socket ready, proceeding with WebRTC setup');
 
         // Answer handler
         const onAnswer = async ({ sdp, sessionId: sid }) => {
@@ -403,7 +399,7 @@ export function useDeskLinkWebRTC() {
             
             console.log('[WebRTC] Setting remote description (answer)...');
             await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp }));
-            console.log('[WebRTC] ✓ Remote description set (answer)');
+            console.log('[WebRTC] Remote description set (answer)');
 
             // Apply buffered ICE candidates
             const buffered = pendingRemoteIceCandidatesRef.current || [];
@@ -412,7 +408,7 @@ export function useDeskLinkWebRTC() {
               for (const c of buffered) {
                 try {
                   await pc.addIceCandidate(new RTCIceCandidate(c));
-                  console.log('[WebRTC] ✓ Applied buffered ICE');
+                  console.log('[WebRTC] Applied buffered ICE');
                 } catch (err) {
                   console.error('[WebRTC] Error applying buffered ICE:', err);
                 }
@@ -437,7 +433,7 @@ export function useDeskLinkWebRTC() {
             }
 
             await pc.addIceCandidate(new RTCIceCandidate(candidate));
-            console.log('[WebRTC] ✓ Added ICE candidate (caller)');
+            console.log('[WebRTC] Added ICE candidate (caller)');
           } catch (err) {
             console.error('[WebRTC] Error adding ICE (caller):', err);
           }
@@ -454,9 +450,9 @@ export function useDeskLinkWebRTC() {
 
         // Verify datachannel
         if (!dataChannelRef.current) {
-          throw new Error('❌ CRITICAL: DataChannel was NOT created!');
+          throw new Error('CRITICAL: DataChannel was NOT created!');
         }
-        console.log('[WebRTC] ✓ DataChannel verified, readyState:', dataChannelRef.current.readyState);
+        console.log('[WebRTC] DataChannel verified, readyState:', dataChannelRef.current.readyState);
 
         // Wait for datachannel to be ready
         await sleep(200);
@@ -469,7 +465,7 @@ export function useDeskLinkWebRTC() {
         });
         
         await pc.setLocalDescription(offer);
-        console.log('[WebRTC] ✓ Local description set (offer)');
+        console.log('[WebRTC] Local description set (offer)');
 
         // Small delay before sending
         await sleep(150);
@@ -506,10 +502,10 @@ export function useDeskLinkWebRTC() {
 
         console.log('[WebRTC] Offer emitted successfully');
 
-        console.log('[WebRTC] ✓✓✓ OFFER SENT ✓✓✓');
+        console.log('[WebRTC] OFFER SENT');
       } catch (err) {
         startedRef.current = false;
-        console.error('[WebRTC] ✗ Error in startAsCaller:', err);
+        console.error('[WebRTC] Error in startAsCaller:', err);
         throw err;
       }
     },
@@ -543,9 +539,6 @@ export function useDeskLinkWebRTC() {
 
         socket.on('connect', () => {
           console.log('[WebRTC] (receiver) socket connected', socket.id);
-          if (localDeviceId) {
-            socket.emit('register', { deviceId: localDeviceId });
-          }
         });
 
         socket.on('webrtc-ice', async ({ candidate, sessionId: sid }) => {
@@ -553,6 +546,7 @@ export function useDeskLinkWebRTC() {
             const pc = pcRef.current;
             if (pc && pc.remoteDescription && candidate && candidate.candidate) {
               await pc.addIceCandidate(new RTCIceCandidate(candidate));
+              console.log('[WebRTC] (receiver) Added remote ICE');
               console.log('[WebRTC] (receiver) ✓ Added remote ICE');
             } else {
               pendingRemoteIceCandidatesRef.current.push(candidate);

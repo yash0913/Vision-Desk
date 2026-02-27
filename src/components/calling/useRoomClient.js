@@ -6,6 +6,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
+function getAuthUserIdFromStorage() {
+  try {
+    const raw = typeof window !== 'undefined' ? window.localStorage.getItem('vd_user_profile') : null;
+    if (!raw) return null;
+    const profile = JSON.parse(raw);
+    return profile?.id ? String(profile.id) : null;
+  } catch {
+    return null;
+  }
+}
+
 const DEFAULT_ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
@@ -537,6 +548,12 @@ export function useRoomClient(roomId, userId, userName, isHost = false, onLeave 
   const initializeLocalStream = useCallback(
     async (constraints = {}) => {
       try {
+        const authUserId = getAuthUserIdFromStorage();
+        if (!authUserId) {
+          console.error('CRITICAL: Missing authUserId (Mongo id) for meeting participant. Aborting meeting initialization.');
+          return null;
+        }
+
         const defaultConstraints = {
           audio: isAudioEnabled,
           video: isVideoEnabled ? { width: 1280, height: 720 } : false,
@@ -567,6 +584,9 @@ export function useRoomClient(roomId, userId, userName, isHost = false, onLeave 
                   audioStream: stream,
                   isAudioEnabled,
                   isVideoEnabled,
+                  isLocal: true,
+                  isScreenSharing: false,
+                  authUserId,
                 }
                 : p
             );
@@ -582,6 +602,7 @@ export function useRoomClient(roomId, userId, userName, isHost = false, onLeave 
               isVideoEnabled,
               isLocal: true,
               isScreenSharing: false,
+              authUserId,
             },
           ];
         });
@@ -1557,6 +1578,7 @@ export function useRoomClient(roomId, userId, userName, isHost = false, onLeave 
         userId,
         userName,
         isHost,
+        authUserId: getAuthUserIdFromStorage(),
       });
     });
 

@@ -157,7 +157,7 @@ function initDesklink(app, server, io) {
     const controllerDeviceId =
       (req.headers['x-device-id'] && String(req.headers['x-device-id'])) ||
       (req.headers['x-controller-device-id'] && String(req.headers['x-controller-device-id'])) ||
-      `web-${userId}`;
+      '';
 
     const session = {
       sessionId,
