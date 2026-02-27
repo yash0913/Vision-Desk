@@ -986,6 +986,8 @@ const requestMeetingRemoteSession = async (req, res) => {
 
       startedAt: new Date(),
 
+      fromMeeting: true,  // ✅ Mark this as a meeting session for role swapping
+
     });
 
 
