@@ -536,6 +536,16 @@ const acceptRemoteSession = async (req, res) => {
 
     console.log('[desklink-session-start] Full caller payload:', JSON.stringify(callerPayload).substring(0, 200));
 
+    const receiverPayload = {
+
+      ...sessionMetadata,
+
+      token: isMeetingSession ? callerToken : receiverToken, // Swap for meeting
+
+      role: 'receiver',
+
+    };
+
     console.log('[desklink-session-start emit]', { 
 
       sessionId: session.sessionId, 
