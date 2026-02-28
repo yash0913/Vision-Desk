@@ -219,17 +219,17 @@ function VideoRoomInner({
 
     console.log('[VideoRoom] hasRemoteStream:', !!remoteDesktopStream);
 
-    console.log('[VideoRoom] remoteDesktopStream:', remoteDesktopStream);
+    console.log('[VideoRoom] remoteDesktopStream ID:', remoteDesktopStream?.id || 'no-id');
 
     console.log('[VideoRoom] hasSessionConfig:', !!sessionConfig);
 
-    console.log('[VideoRoom] sessionConfig:', sessionConfig);
+    console.log('[VideoRoom] sessionConfig sessionId:', sessionConfig?.sessionId);
 
     console.log('[VideoRoom] sessionConfigId:', sessionConfig?.sessionId);
 
     console.log('[VideoRoom] remoteStreamTracks:', remoteDesktopStream?.getTracks()?.length || 0);
 
-    console.log('[VideoRoom] remoteStream active tracks:', remoteDesktopStream?.getActiveTracks()?.length || 0);
+    console.log('[VideoRoom] remoteStream active tracks:', remoteDesktopStream?.getTracks()?.filter(t => t.readyState === "live")?.length || 0);
 
     console.log('[VideoRoom] permissions:', permissions);
 

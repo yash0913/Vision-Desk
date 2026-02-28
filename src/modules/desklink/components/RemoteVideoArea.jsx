@@ -21,16 +21,15 @@ export default function RemoteVideoArea({
 
   useEffect(() => {
     console.log('[RemoteVideoArea] ===== STREAM UPDATE =====');
-    console.log('[RemoteVideoArea] stream:', stream);
-    console.log('[RemoteVideoArea] videoRef.current:', videoRef.current);
-    console.log('[RemoteVideoArea] stream tracks:', stream?.getTracks());
-    console.log('[RemoteVideoArea] stream active tracks:', stream?.getTracks().filter(track => track.enabled));
+    console.log('[RemoteVideoArea] stream exists:', !!stream);
+    console.log('[RemoteVideoArea] videoRef exists:', !!videoRef.current);
+    console.log('[RemoteVideoArea] stream tracks count:', stream?.getTracks()?.length || 0);
     
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
       console.log('[RemoteVideoArea] ✓ Stream set to video element');
-      console.log('[RemoteVideoArea] Stream tracks:', stream.getTracks());
-      console.log('[RemoteVideoArea] Video element srcObject:', videoRef.current.srcObject);
+      console.log('[RemoteVideoArea] Stream tracks count:', stream.getTracks()?.length || 0);
+      console.log('[RemoteVideoArea] Video srcObject exists:', !!videoRef.current.srcObject);
       
       // Force video to play
       videoRef.current.play().catch(err => {

@@ -1,5 +1,28 @@
 import React, { useState, useEffect } from 'react';
 
+function safeStringify(obj) {
+  try {
+    return JSON.stringify(obj, (key, value) => {
+      if (value instanceof HTMLElement) return "[HTMLElement]";
+      if (value instanceof MediaStream) return "[MediaStream]";
+      if (value instanceof MediaStreamTrack) return "[MediaStreamTrack]";
+      if (value instanceof RTCPeerConnection) return "[RTCPeerConnection]";
+      if (typeof value === 'object' && value !== null && value.constructor && value.constructor.name === 'Object') {
+        // Handle circular references by checking for nested objects that might cause issues
+        try {
+          JSON.stringify(value);
+          return value;
+        } catch {
+          return "[Circular Object]";
+        }
+      }
+      return value;
+    });
+  } catch (e) {
+    return "[Unserializable Object]";
+  }
+}
+
 export function WebRTCDebugPanel() {
   const [logs, setLogs] = useState([]);
   const [isVisible, setIsVisible] = useState(false);
@@ -14,7 +37,7 @@ export function WebRTCDebugPanel() {
     const addLog = (type, ...args) => {
       const timestamp = new Date().toLocaleTimeString();
       const message = args.map(arg => 
-        typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+        typeof arg === 'object' ? safeStringify(arg) : String(arg)
       ).join(' ');
       
       setLogs(prev => [...prev, { timestamp, type, message }].slice(-100)); // Keep last 100 logs

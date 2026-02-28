@@ -19,7 +19,7 @@ import {
   Info,
   MoreVertical,
 } from 'lucide-react';
-import { useMeeting } from './useMeeting.js';
+import { useDeskLinkWebRTC } from '../../modules/desklink/hooks/useDeskLinkWebRTC.js';
 
 export default function MeetingRoom({
   roomId,
@@ -29,24 +29,27 @@ export default function MeetingRoom({
   initialVideoEnabled = true,
   localStream: externalStream,
   onLeave,
+  sessionId,
+  remoteDeviceId,
+  sessionToken,
+  token,
 }) {
   const userId = useMemo(() => crypto.randomUUID(), []);
 
   const {
-    localStream,
-    remoteStreams,
-    participants,
-    isAudioEnabled,
-    isVideoEnabled,
-    isScreenSharing,
-    screenShareStream,
-    toggleAudio,
-    toggleVideo,
-    startScreenShare,
-    stopScreenShare,
-    joinRoom,
-    leaveRoom,
-  } = useMeeting(roomId, userId, isHost, externalStream, initialAudioEnabled, initialVideoEnabled);
+    connectionState,
+    iceConnectionState,
+    remoteStream,
+    stats,
+    startAsCaller,
+    handleOffer,
+    addIceCandidate,
+    sendControlMessage,
+    stopSession,
+    setOnDataMessage,
+    setOnConnected,
+    setOnDisconnected,
+  } = useDeskLinkWebRTC();
 
   const [showParticipants, setShowParticipants] = useState(false);
   const [showChat, setShowChat] = useState(false);
@@ -58,51 +61,61 @@ export default function MeetingRoom({
   const localVideoRef = useRef(null);
   const remoteVideoRefs = useRef(new Map());
 
-  // Initialize and join room
+  // Update remote video
   useEffect(() => {
-    if (externalStream) {
-      // Use provided stream
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = externalStream;
-      }
-      // Still join room for signaling
-      joinRoom(userName);
-    } else {
-      // Join room and initialize stream
-      joinRoom(userName);
+    if (remoteVideoRefs.current.get('remote') && remoteStream) {
+      remoteVideoRefs.current.get('remote').srcObject = remoteStream;
     }
-  }, [externalStream, joinRoom, userName]);
+  }, [remoteStream]);
 
-  // Update local video
+  // Handle connection events
   useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
-    }
-  }, [localStream]);
-
-  // Update remote videos
-  useEffect(() => {
-    remoteStreams.forEach((stream, userId) => {
-      const videoRef = remoteVideoRefs.current.get(userId);
-      if (videoRef) {
-        videoRef.srcObject = stream;
-      }
+    setOnConnected(() => {
+      console.log('[MeetingRoom] WebRTC connected');
     });
-  }, [remoteStreams]);
+    
+    setOnDisconnected(() => {
+      console.log('[MeetingRoom] WebRTC disconnected');
+    });
+    
+    setOnDataMessage((message) => {
+      console.log('[MeetingRoom] Data message received:', message);
+    });
+  }, [setOnConnected, setOnDisconnected, setOnDataMessage]);
 
-  // Simulate active speaker detection
+  // Start WebRTC connection when we have all required data
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (participants.length > 0) {
-        const randomParticipant = participants[Math.floor(Math.random() * participants.length)];
-        if (randomParticipant) {
-          setActiveSpeakerId(randomParticipant.id);
-        }
-      }
-    }, 3000);
+    if (!sessionId || !remoteDeviceId || !userId || !sessionToken) {
+      console.log('[MeetingRoom] Waiting for connection data:', {
+        sessionId: !!sessionId,
+        remoteDeviceId: !!remoteDeviceId,
+        userId: !!userId,
+        sessionToken: !!sessionToken
+      });
+      return;
+    }
 
-    return () => clearInterval(interval);
-  }, [participants]);
+    console.log('[MeetingRoom] Starting WebRTC connection');
+    startAsCaller({
+      sessionId,
+      authToken: token,
+      sessionToken,
+      localUserId: userId,
+      localDeviceId: `web-${userId}`,
+      remoteDeviceId,
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+      ],
+    });
+  }, [sessionId, remoteDeviceId, userId, sessionToken, token, startAsCaller]);
+
+  const handleLeave = useCallback(() => {
+    stopSession();
+    if (onLeave) {
+      onLeave();
+    }
+  }, [stopSession, onLeave]);
 
   // Calculate grid layout
   const getGridCols = (count) => {
@@ -114,28 +127,14 @@ export default function MeetingRoom({
     return 'grid-cols-5';
   };
 
-  const handleLeave = useCallback(() => {
-    leaveRoom();
-    if (onLeave) {
-      onLeave();
-    }
-  }, [leaveRoom, onLeave]);
-
   const allParticipants = [
-    {
-      id: 'local',
-      name: userName || 'You',
-      stream: localStream || externalStream,
-      isLocal: true,
-      isScreenShare: isScreenSharing,
-    },
-    ...participants.map((p) => ({
-      id: p.id,
-      name: p.name,
-      stream: remoteStreams.get(p.id),
+    ...(remoteStream ? [{
+      id: 'remote',
+      name: 'Remote Desktop',
+      stream: remoteStream,
       isLocal: false,
       isScreenShare: false,
-    })),
+    }] : []),
   ].filter((p) => p.stream);
 
   const totalParticipants = allParticipants.length;
@@ -146,10 +145,8 @@ export default function MeetingRoom({
       <div className="flex-1 overflow-auto p-4">
         <div className={`grid ${getGridCols(totalParticipants)} gap-4 h-full`}>
           {allParticipants.map((participant) => {
-            const isActive = activeSpeakerId === participant.id;
-            const videoRef = participant.isLocal ? localVideoRef : remoteVideoRefs.current.get(participant.id);
-
-            if (!videoRef && !participant.isLocal) {
+            // Create ref if it doesn't exist
+            if (!remoteVideoRefs.current.get(participant.id)) {
               const ref = React.createRef();
               remoteVideoRefs.current.set(participant.id, ref);
             }
@@ -157,15 +154,14 @@ export default function MeetingRoom({
             return (
               <div
                 key={participant.id}
-                className={`relative aspect-video rounded-lg overflow-hidden bg-slate-900 ${isActive ? 'ring-4 ring-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.5)]' : 'ring-2 ring-slate-800'
-                  } ${participant.isScreenShare ? 'ring-4 ring-amber-500' : ''}`}
+                className="relative aspect-video rounded-lg overflow-hidden bg-slate-900 ring-2 ring-slate-800"
               >
-                {participant.stream && (participant.isScreenShare || isVideoEnabled || !participant.isLocal) ? (
+                {participant.stream ? (
                   <video
-                    ref={participant.isLocal ? localVideoRef : remoteVideoRefs.current.get(participant.id)}
+                    ref={remoteVideoRefs.current.get(participant.id)}
                     autoPlay
                     playsInline
-                    muted={participant.isLocal}
+                    muted={false}
                     className="h-full w-full object-cover"
                   />
                 ) : (
@@ -177,6 +173,8 @@ export default function MeetingRoom({
                         </span>
                       </div>
                       <span className="text-sm font-medium text-slate-300">{participant.name}</span>
+                      <span className="text-xs text-slate-400">Connection State: {connectionState}</span>
+                      <span className="text-xs text-slate-400">ICE State: {iceConnectionState}</span>
                     </div>
                   </div>
                 )}
@@ -186,168 +184,55 @@ export default function MeetingRoom({
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-white">{participant.name}</span>
                     <div className="flex items-center gap-1">
-                      {!isAudioEnabled && participant.isLocal && (
-                        <div className="flex h-5 w-5 items-center justify-center rounded bg-red-600">
-                          <MicOff className="h-3 w-3 text-white" />
-                        </div>
+                      {connectionState === 'connected' && (
+                        <div className="flex h-2 w-2 items-center justify-center rounded-full bg-green-500"></div>
                       )}
-                      {!isVideoEnabled && participant.isLocal && (
-                        <div className="flex h-5 w-5 items-center justify-center rounded bg-red-600">
-                          <VideoOff className="h-3 w-3 text-white" />
-                        </div>
-                      )}
-                      {participant.isScreenShare && (
-                        <div className="flex items-center gap-1 rounded bg-amber-600 px-1.5 py-0.5">
-                          <span className="text-[10px] font-medium text-white">Screen</span>
-                        </div>
+                      {connectionState !== 'connected' && (
+                        <div className="flex h-2 w-2 items-center justify-center rounded-full bg-yellow-500"></div>
                       )}
                     </div>
                   </div>
                 </div>
-
-                {/* Active speaker indicator */}
-                {isActive && (
-                  <div className="absolute top-2 right-2">
-                    <div className="h-3 w-3 animate-pulse rounded-full bg-blue-500"></div>
-                  </div>
-                )}
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Bottom Toolbar - Zoom Style */}
+      {/* Bottom Toolbar - Simplified for Remote Desktop */}
       <div className="border-t border-slate-800 bg-[#1E293B] px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          {/* Left side - Meeting info */}
+          {/* Left side - Connection info */}
           <div className="flex items-center gap-4">
             <div className="text-sm text-slate-400">
-              Meeting ID: <span className="font-mono text-white">{roomId}</span>
+              Connection: <span className="font-mono text-white">{connectionState}</span>
+            </div>
+            <div className="text-sm text-slate-400">
+              ICE: <span className="font-mono text-white">{iceConnectionState}</span>
             </div>
           </div>
 
           {/* Center - Main controls */}
           <div className="flex items-center gap-2">
-            {/* Audio Toggle */}
-            <button
-              onClick={() => toggleAudio(!isAudioEnabled)}
-              className={`flex items-center justify-center w-12 h-12 rounded-full transition-all ${isAudioEnabled
-                  ? 'bg-slate-700 text-white hover:bg-slate-600'
-                  : 'bg-red-600 text-white hover:bg-red-500'
-                }`}
-              title={isAudioEnabled ? 'Mute' : 'Unmute'}
-            >
-              {isAudioEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
-            </button>
-
-            {/* Video Toggle */}
-            <button
-              onClick={() => toggleVideo(!isVideoEnabled)}
-              className={`flex items-center justify-center w-12 h-12 rounded-full transition-all ${isVideoEnabled
-                  ? 'bg-slate-700 text-white hover:bg-slate-600'
-                  : 'bg-red-600 text-white hover:bg-red-500'
-                }`}
-              title={isVideoEnabled ? 'Turn off video' : 'Turn on video'}
-            >
-              {isVideoEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
-            </button>
-
-            {/* Participants */}
-            <button
-              onClick={() => setShowParticipants(!showParticipants)}
-              className="flex items-center justify-center w-12 h-12 rounded-full bg-slate-700 text-white hover:bg-slate-600 transition-all"
-              title="Participants"
-            >
-              <Users className="h-5 w-5" />
-            </button>
-
-            {/* Chat */}
-            <button
-              onClick={() => setShowChat(!showChat)}
-              className="flex items-center justify-center w-12 h-12 rounded-full bg-slate-700 text-white hover:bg-slate-600 transition-all"
-              title="Chat"
-            >
-              <MessageSquare className="h-5 w-5" />
-            </button>
-
-            {/* Reactions */}
-            <button
-              onClick={() => setShowReactions(!showReactions)}
-              className="flex items-center justify-center w-12 h-12 rounded-full bg-slate-700 text-white hover:bg-slate-600 transition-all"
-              title="Reactions"
-            >
-              <Smile className="h-5 w-5" />
-            </button>
-
-            {/* Share Screen */}
-            <button
-              onClick={isScreenSharing ? stopScreenShare : startScreenShare}
-              className={`flex items-center justify-center w-12 h-12 rounded-full transition-all ${isScreenSharing
-                  ? 'bg-blue-600 text-white hover:bg-blue-500'
-                  : 'bg-slate-700 text-white hover:bg-slate-600'
-                }`}
-              title={isScreenSharing ? 'Stop sharing' : 'Share screen'}
-            >
-              <Monitor className="h-5 w-5" />
-            </button>
-            {/* AnyDesk / Remote Access */}
-            <button
-              onClick={() => {
-                console.log("AnyDesk clicked");
-                setIsAnyDeskActive(true);
-              }}
-              className="flex items-center justify-center w-12 h-12 rounded-full 
-             bg-purple-600 text-white hover:bg-purple-500 transition-all"
-              title="Remote Access"
-            >
-              <Share2 className="h-5 w-5" />
-            </button>
-
-
-            {/* Host Tools (only for host) */}
-            {isHost && (
-              <button
-                className="flex items-center justify-center w-12 h-12 rounded-full bg-slate-700 text-white hover:bg-slate-600 transition-all"
-                title="Host Tools"
-              >
-                <Settings className="h-5 w-5" />
-              </button>
-            )}
-
-            {/* Meeting Info */}
-            <button
-              className="flex items-center justify-center w-12 h-12 rounded-full bg-slate-700 text-white hover:bg-slate-600 transition-all"
-              title="Meeting Info"
-            >
-              <Info className="h-5 w-5" />
-            </button>
-
-            {/* More */}
-            <button
-              onClick={() => setShowMore(!showMore)}
-              className="flex items-center justify-center w-12 h-12 rounded-full bg-slate-700 text-white hover:bg-slate-600 transition-all"
-              title="More"
-            >
-              <MoreVertical className="h-5 w-5" />
-            </button>
-
-            {/* End Meeting - Red button */}
+            {/* Leave button */}
             <button
               onClick={handleLeave}
-              className="ml-4 flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-medium px-6 py-2 rounded-full transition-colors"
-              title="End Meeting"
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
             >
-              <PhoneOff className="h-5 w-5" />
-              <span>End Meeting</span>
+              <PhoneOff className="h-4 w-4" />
+              <span>End Session</span>
             </button>
           </div>
 
-          {/* Right side - Empty for now */}
-          <div className="w-32"></div>
+          {/* Right side - Stats */}
+          <div className="flex items-center gap-4 text-sm text-slate-400">
+            <div>Bitrate: {Math.round(stats.bitrate)} kbps</div>
+            <div>RTT: {stats.rtt} ms</div>
+            <div>FPS: {stats.fps}</div>
+          </div>
         </div>
       </div>
     </div>
   );
 }
-
+              
