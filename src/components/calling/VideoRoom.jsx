@@ -101,6 +101,7 @@ function VideoRoomInner({
     rejectIncomingRequest,
     checkUserAgentStatus, // Exported from context
     meetingSocketReady, // Exported from context
+    meetingSocket, // Exported from context
   } = useMeetingRemoteControl();
 
   // Listen for AnyDesk-style incoming request modal on host browser
@@ -125,7 +126,7 @@ function VideoRoomInner({
     console.log('[VideoRoom] remoteStream active tracks:', remoteDesktopStream?.getActiveTracks()?.length || 0);
     console.log('[VideoRoom] permissions:', permissions);
     console.log('[VideoRoom] Should show RemoteVideoArea:', !!(remoteDesktopStream && sessionConfig));
-    
+
     // Show alert when remote stream is received
     if (remoteDesktopStream && !window._remoteStreamAlertShown) {
       window._remoteStreamAlertShown = true;
@@ -203,7 +204,7 @@ function VideoRoomInner({
   }, [accessStateByOwner, localAuthUserId]);
 
   useEffect(() => {
-    const socket = window.__meetingSocket;
+    const socket = meetingSocket;
     if (!socket) return;
 
     const handleAccessState = (payload) => {
@@ -273,11 +274,11 @@ function VideoRoomInner({
       socket.off('access-rejected', handleRejected);
       socket.off('access-error', handleErr);
     };
-  }, [roomId, localAuthUserId]);
+  }, [roomId, localAuthUserId, meetingSocket]);
 
   const requestAccess = React.useCallback(
     (targetAuthUserId) => {
-      const socket = window.__meetingSocket;
+      const socket = meetingSocket;
       if (!socket) return;
       if (!localAuthUserId || !targetAuthUserId) return;
       if (String(localAuthUserId) === String(targetAuthUserId)) return;
@@ -290,12 +291,12 @@ function VideoRoomInner({
         requesterId: String(localAuthUserId),
       });
     },
-    [roomId, localAuthUserId]
+    [roomId, localAuthUserId, meetingSocket]
   );
 
   const acceptRequest = React.useCallback(
     (requesterAuthUserId) => {
-      const socket = window.__meetingSocket;
+      const socket = meetingSocket;
       if (!socket) return;
       if (!localAuthUserId) return;
       socket.emit('grant-access', {
@@ -304,12 +305,12 @@ function VideoRoomInner({
         requesterId: String(requesterAuthUserId),
       });
     },
-    [roomId, localAuthUserId]
+    [roomId, localAuthUserId, meetingSocket]
   );
 
   const rejectRequest = React.useCallback(
     (requesterAuthUserId) => {
-      const socket = window.__meetingSocket;
+      const socket = meetingSocket;
       if (!socket) return;
       if (!localAuthUserId) return;
       socket.emit('reject-access', {
@@ -318,18 +319,18 @@ function VideoRoomInner({
         requesterId: String(requesterAuthUserId),
       });
     },
-    [roomId, localAuthUserId]
+    [roomId, localAuthUserId, meetingSocket]
   );
 
   const revokeAccess = React.useCallback(() => {
-    const socket = window.__meetingSocket;
+    const socket = meetingSocket;
     if (!socket) return;
     if (!localAuthUserId) return;
     socket.emit('revoke-access', {
       meetingId: roomId,
       ownerId: String(localAuthUserId),
     });
-  }, [roomId, localAuthUserId]);
+  }, [roomId, localAuthUserId, meetingSocket]);
 
   // Debug logs to verify participant and authUserId mapping for remote control
   React.useEffect(() => {
@@ -344,11 +345,11 @@ function VideoRoomInner({
     });
   }, [allParticipants, userId]);
 
-  // Build controller candidates: all non-local participants (allow guests to request control)
+  // Build controller candidates: all non-local participants with a resolved authUserId
   const controllerCandidates = React.useMemo(
     () =>
       (allParticipants || [])
-        .filter((p) => p.id !== userId),
+        .filter((p) => p.id !== userId && p.authUserId),
     [allParticipants, userId]
   );
 
@@ -519,8 +520,8 @@ function VideoRoomInner({
                         String(myAccessState.ownerId || '') !== String(localAuthUserId || '')
                       }
                       className={`text-xs px-3 py-1.5 rounded-md text-white ${!myAccessState.activeController || String(myAccessState.ownerId || '') !== String(localAuthUserId || '')
-                          ? 'bg-slate-700 opacity-50 cursor-not-allowed'
-                          : 'bg-red-600 hover:bg-red-500'
+                        ? 'bg-slate-700 opacity-50 cursor-not-allowed'
+                        : 'bg-red-600 hover:bg-red-500'
                         }`}
                     >
                       Revoke Access
@@ -614,28 +615,30 @@ function VideoRoomInner({
                         Remote control unavailable: no participants with a resolved backend userId.
                       </div>
                     ) : (
-                      <div className="flex items-center justify-between rounded-md bg-slate-800/80 px-2 py-2">
-                        <div className="flex flex-col">
-                          <span className="text-[11px] font-medium text-slate-100">Host PC</span>
-                          <span className="text-[10px] text-slate-500">Meeting remote control targets the host native agent.</span>
+                      controllerCandidates.map((p) => (
+                        <div key={p.id} className="flex items-center justify-between rounded-md bg-slate-800/80 px-2 py-2">
+                          <div className="flex flex-col">
+                            <span className="text-[11px] font-medium text-slate-100">{p.name || 'Participant'}</span>
+                            <span className="text-[10px] text-slate-500">{p.isHost ? 'Meeting Host (Native Agent)' : 'Meeting Participant'}</span>
+                          </div>
+                          <div className="flex flex-col items-end gap-0.5">
+                            <button
+                              className="bg-blue-500 text-white px-3 py-1 rounded text-[10px] disabled:opacity-50 hover:bg-blue-400"
+                              disabled={!!requestingByTarget[String(p.authUserId)] || !meetingSocketReady}
+                              onClick={() => {
+                                if (!meetingSocketReady) {
+                                  console.warn('[VideoRoom] Request Access clicked but meetingSocket not ready yet');
+                                  return;
+                                }
+                                console.log('[VideoRoom] Request Access clicked for', p.authUserId);
+                                requestAccess(String(p.authUserId));
+                              }}
+                            >
+                              {requestingByTarget[String(p.authUserId)] ? 'Request Sent' : 'Request Control'}
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex flex-col items-end gap-0.5">
-                          <button
-                            className="bg-blue-500 text-white px-3 py-1 rounded disabled:opacity-50"
-                            disabled={!isAgentOnline || !meetingSocketReady}
-                            onClick={() => {
-                              if (!meetingSocketReady) {
-                                console.warn('[VideoRoom] Request Control clicked but meetingSocket not ready yet');
-                                return;
-                              }
-                              console.log('[VideoRoom] Request Control clicked');
-                              requestControl();
-                            }}
-                          >
-                            Request Control
-                          </button>
-                        </div>
-                      </div>
+                      ))
                     )}
                   </div>
                 </div>
@@ -682,8 +685,8 @@ function VideoRoomInner({
                           onClick={() => requestAccess(String(p.authUserId))}
                           disabled={!!requestingByTarget[String(p.authUserId)]}
                           className={`text-[10px] px-2 py-1 rounded border ${requestingByTarget[String(p.authUserId)]
-                              ? 'border-slate-600 text-slate-400 cursor-not-allowed'
-                              : 'border-purple-500/60 text-purple-100 hover:bg-purple-600/20'
+                            ? 'border-slate-600 text-slate-400 cursor-not-allowed'
+                            : 'border-purple-500/60 text-purple-100 hover:bg-purple-600/20'
                             }`}
                         >
                           {requestingByTarget[String(p.authUserId)] ? 'Request Sent' : 'Request Access'}

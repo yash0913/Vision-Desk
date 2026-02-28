@@ -664,6 +664,7 @@ export function useRoomClient(roomId, userId, userName, isHost = false, onLeave 
       }
 
       console.log('[ROOM] room-users payload:', users);
+      users.forEach(u => console.log('[ROOM] user in payload:', { id: u.userId, name: u.userName, authUserId: u.authUserId }));
 
       // Wait for ICE servers if not loaded yet
       if (!iceServersRef.current && !iceServersFetchedRef.current) {
@@ -747,6 +748,7 @@ export function useRoomClient(roomId, userId, userName, isHost = false, onLeave 
         newUserName,
         authUserId,
       });
+      console.log('[ROOM] assigning authUserId to state:', authUserId || 'NULL');
 
       setParticipants((prev) => {
         if (prev.find((p) => p.id === newUserId)) return prev;

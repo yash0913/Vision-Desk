@@ -40,7 +40,7 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
   // Wait for global socket to become available, then bind listeners
   useEffect(() => {
     if (!meetingId) return;
-    
+
     const initializeSocket = async () => {
       try {
         const socket = await getSocket(token);
@@ -246,7 +246,7 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
     meetingSocket.emit('request-control', { meetingId });
   }, [meetingSocket, meetingId]);
 
-// ... (rest of the code remains the same)
+  // ... (rest of the code remains the same)
   const checkUserAgentStatus = useCallback(async () => {
     return 'unknown';
   }, []);
@@ -370,6 +370,7 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
 
     // Expose socket readiness for UI guards
     meetingSocketReady: !!meetingSocket,
+    meetingSocket,
   };
 
 
