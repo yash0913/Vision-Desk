@@ -30,11 +30,11 @@ import RemoteVideoArea from '../../modules/desklink/components/RemoteVideoArea.j
 
 import IncomingRequestModal from '../../modules/desklink/components/IncomingRequestModal.jsx';
 
+import RemoteControlManagerPanel from './RemoteControlManagerPanel.jsx';
+
 import { useDeskLinkSocket } from '../../modules/desklink/hooks/useDeskLinkSocket.js';
 import { getSocket } from '../../socket.js';
 import { MousePointer2 } from 'lucide-react';
-
-import { WebRTCDebugPanel } from "./WebRTCDebugPanel";
 
 
 
@@ -103,6 +103,10 @@ function VideoRoomInner({
   const [isHostPanelOpen, setIsHostPanelOpen] = React.useState(false);
 
   const [selectedParticipantId, setSelectedParticipantId] = React.useState('');
+
+  // PART 2: REMOTE CONTROL MANAGER STATE
+  const [controlRequests, setControlRequests] = React.useState([]);
+  const [activeController, setActiveController] = React.useState(null);
 
 
 
@@ -252,7 +256,36 @@ function VideoRoomInner({
 
     }
 
-  }, [isRemoteControlOpen, remoteDesktopStream, sessionConfig, permissions]);
+  // PART 5: SAFETY RULES AND CLEANUP
+  useEffect(() => {
+    // Clear active controller if they disconnect
+    const handleParticipantDisconnect = (participantId) => {
+      if (activeController === participantId) {
+        setActiveController(null);
+        setControlRequests(prev => 
+          prev.map(req => 
+            req.userId === participantId 
+              ? { ...req, status: 'pending' }
+              : req
+          )
+        );
+      }
+    };
+
+    // Listen for participant changes
+    const participantIds = (allParticipants || []).map(p => p.id);
+    participantIds.forEach(id => {
+      if (!allParticipants.find(p => p.id === id)) {
+        handleParticipantDisconnect(id);
+      }
+    });
+
+    // Clear controller if host leaves
+    if (!isHost && activeController) {
+      setActiveController(null);
+      setControlRequests([]);
+    }
+  }, [allParticipants, activeController, isHost]);
 
 
 
@@ -1208,159 +1241,31 @@ function VideoRoomInner({
 
 
 
-      {/* In-Meeting Remote Control Panel (VisionDesk Control Mode) */}
-      {/* HIDE when remote desktop is active in main stage */}
+      {/* Remote Control Manager Panel */}
+
       {isRemoteControlOpen && !isRemoteDesktopActive && (
 
         <div className="pointer-events-auto absolute bottom-28 right-6 z-40 w-[420px] max-w-[90vw]">
 
-          <div className="bg-slate-900/95 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[260px]">
+          <RemoteControlManagerPanel
 
-            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800">
+            participants={allParticipants || []}
 
-              <div className="flex flex-col">
+            controlRequests={controlRequests}
 
-                <span className="text-xs font-semibold text-slate-100">Remote Control</span>
+            setControlRequests={setControlRequests}
 
-                <span className="text-[10px] text-slate-400">In-meeting VisionDesk Control Mode</span>
+            activeController={activeController}
 
-              </div>
+            setActiveController={setActiveController}
 
-              <button
+            socket={meetingSocket}
 
-                type="button"
+            userId={userId}
 
-                onClick={toggleRemoteControlPanel}
+            isHost={isHost}
 
-                className="text-slate-400 hover:text-slate-100 text-xs px-2 py-1 rounded-md hover:bg-slate-800"
-
-              >
-
-                Close
-
-              </button>
-
-            </div>
-
-            <div className="flex-1 bg-slate-950/80 p-2">
-
-              {remoteDesktopStream ? (
-
-                <RemoteVideoArea
-
-                  stream={remoteDesktopStream}
-
-                  onControlMessage={sendControlMessage}
-
-                  sessionId={sessionConfig?.sessionId || ''}
-
-                  token={sessionConfig?.sessionToken || ''}
-
-                  permissions={permissions}
-
-                  stats={remoteStats}
-
-                />
-
-              ) : (
-
-                <div className="flex flex-col h-full text-xs text-slate-300">
-
-                  <div className="mb-2 text-[11px] font-medium text-slate-200">Request control from someone in this meeting</div>
-
-                  <div className="flex-1 overflow-auto rounded-lg bg-slate-900/70 border border-slate-800 p-2 space-y-1">
-
-                    {controllerCandidates.length === 0 ? (
-
-                      <div className="text-slate-500 text-[11px] text-center py-6">
-
-                        Remote control unavailable: no participants with a resolved backend userId.
-
-                      </div>
-
-                    ) : (
-
-                      controllerCandidates.map((p) => {
-
-                        const isAgentOnline = agentStatuses[p.id] === 'online';
-
-                        const statusColor = isAgentOnline ? 'bg-emerald-500' : 'bg-slate-600';
-
-                        const statusText = isAgentOnline ? 'Ready' : 'Agent Offline';
-
-
-
-                        return (
-
-                          <div
-
-                            key={p.id}
-
-                            className="flex items-center justify-between rounded-md bg-slate-800/80 px-2 py-1"
-
-                          >
-
-                            <div className="flex flex-col">
-
-                              <span className="text-[11px] font-medium text-slate-100 flex items-center gap-2">
-
-                                {p.name || 'Participant'}
-
-                                <span className={`w-1.5 h-1.5 rounded-full ${statusColor}`} title={statusText}></span>
-
-                              </span>
-
-                              <span className="text-[10px] text-slate-500 break-all">
-
-                                {p.targetUserId ? (
-
-                                  isAgentOnline ? 'Agent Ready' : 'Agent Not Detected'
-
-                                ) : 'Not Registered'}
-
-                              </span>
-
-                            </div>
-
-                            <div className="flex flex-col items-end gap-0.5">
-                              <button
-                                className="bg-blue-500 text-white px-3 py-1 rounded text-[10px] disabled:opacity-50 hover:bg-blue-400"
-                                disabled={!p.targetUserId || !isAgentOnline || !meetingSocketReady}
-                                onClick={() => {
-                                  if (!meetingSocketReady) {
-                                    console.warn('[VideoRoom] Request Access clicked but meetingSocket not ready yet');
-                                    return;
-                                  }
-                                  console.log('[VideoRoom] Request Control clicked for', p.id, 'targetUserId:', p.targetUserId);
-                                  requestControlForUser({
-                                    targetUserId: p.targetUserId,
-                                    targetName: p.name || p.userName,
-                                    senderAuthId: localAuthUserId
-                                  });
-                                }}
-                              >
-                                {meetingSocketReady ? 'Request Control' : 'Connecting...'}
-                              </button>
-                            </div>
-
-                          </div>
-
-                        );
-
-                      })
-
-                    )
-                    }
-
-                  </div>
-
-                </div>
-
-              )}
-
-            </div>
-
-          </div>
+          />
 
         </div>
 
@@ -2007,8 +1912,6 @@ export default function VideoRoom(props) {
     <MeetingRemoteControlProvider meetingId={props.roomId} localAuthUserId={derivedLocalAuthUserId}>
 
       <VideoRoomInner {...props} />
-
-      <WebRTCDebugPanel />
 
     </MeetingRemoteControlProvider>
 

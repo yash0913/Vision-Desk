@@ -2075,14 +2075,14 @@ function createSocketServer(server, clientOrigin) {
 
 
 
-    // Meeting Remote Access Control Events
 
-    socket.on('request-access', ({ meetingId, targetUserId, requesterId }) => {
+    // Host: disable / enable chat for participants
 
-      try {
+    socket.on('host_disable_chat', ({ roomId, disabled }) => {
 
-        const roomId = meetingId;
+      const roomUsers = rooms.get(roomId);
 
+      if (!roomUsers) return;
         const ownerId = String(targetUserId || '');
 
         const requesterAuthId = String(requesterId || getAuthUserIdForSocket(socket) || '');
