@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
+let lastVerifyFail = { msg: null, ts: 0, count: 0 };
+
 /**
  * New: Create session-scoped JWT used in signaling payloads
  */
@@ -99,7 +101,18 @@ function verifySessionToken(token) {
 
     return decoded;
   } catch (err) {
-    console.warn('[sessionToken] verify failed:', err.message);
+    const now = Date.now();
+    const msg = String(err && err.message ? err.message : 'unknown');
+    if (lastVerifyFail.msg === msg && now - lastVerifyFail.ts < 2000) {
+      lastVerifyFail.count += 1;
+      // suppress spam
+    } else {
+      if (lastVerifyFail.count > 0) {
+        console.warn('[sessionToken] verify failed (suppressed repeats):', lastVerifyFail.msg, 'x', lastVerifyFail.count);
+      }
+      lastVerifyFail = { msg, ts: now, count: 0 };
+      console.warn('[sessionToken] verify failed:', msg);
+    }
     return null; // ❗ do NOT throw, just return null
   }
 }

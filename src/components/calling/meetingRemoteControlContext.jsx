@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 
-import { useDeskLinkSocket } from '../../modules/desklink/hooks/useDeskLinkSocket.js';
-
 import { desklinkApi } from '../../modules/desklink/services/desklink.api.js';
 
 import { useAuth } from '../../modules/auth/hooks/useAuth.js';
@@ -40,61 +38,7 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
 
 
 
-  // DeskLink signaling socket (shared with DeskLink page via window.__desklinkSocket)
-
-  const { socket } = useDeskLinkSocket({
-
-    token,
-
-    onRemoteRequest: (payload) => {
-
-      // Incoming request for THIS user (owner side)
-
-      // Don't show incoming request modal for our own requests (meeting sessions)
-
-      console.log('[MeetingRemoteControl] Request check:', {
-
-        payloadFromUserId: payload.fromUserId,
-
-        currentUserId: localAuthUserId,
-
-        shouldIgnore: payload.fromUserId === localAuthUserId
-
-      });
-
-
-
-      if (payload.fromUserId === localAuthUserId) {
-
-        console.log('[MeetingRemoteControl] Ignoring own request (meeting session)');
-
-        return;
-
-      }
-
-
-
-      setIncomingRequest({
-
-        sessionId: payload.sessionId,
-
-        fromUserId: payload.fromUserId,
-
-        fromDeviceId: payload.fromDeviceId,
-
-        callerName: payload.callerName,
-
-      });
-
-    },
-
-    onRemoteResponse: (payload) => {
-
-      return;
-
-    },
-
-  });
+  const meetingSocket = typeof window !== 'undefined' ? window.__meetingSocket : null;
 
 
 
@@ -178,13 +122,14 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
 
   // Meeting-native WebRTC receiver
   useEffect(() => {
-    if (!socket) return;
+    if (!meetingSocket) return;
     if (!meetingId) return;
 
     const currentMeetingId = String(meetingId);
 
     const handleOffer = async (payload) => {
       try {
+        console.log('[MEETING] webrtc-offer raw payload', payload);
         if (!payload || String(payload.meetingId || '') !== currentMeetingId) return;
         if (!payload.sdp) return;
 
@@ -202,7 +147,7 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
 
         pc.onicecandidate = (event) => {
           if (event.candidate) {
-            socket.emit('webrtc-ice', {
+            meetingSocket.emit('webrtc-ice', {
               meetingId: currentMeetingId,
               candidate: event.candidate,
             });
@@ -224,7 +169,7 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
         await pc.setLocalDescription(answer);
 
         console.log('[MEETING] Sending webrtc-answer');
-        socket.emit('webrtc-answer', {
+        meetingSocket.emit('webrtc-answer', {
           meetingId: currentMeetingId,
           sdp: answer.sdp,
         });
@@ -240,6 +185,7 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
 
     const handleIce = async (payload) => {
       try {
+        console.log('[MEETING] webrtc-ice raw payload', payload);
         if (!payload || String(payload.meetingId || '') !== currentMeetingId) return;
         if (!payload.candidate) return;
         const pc = pcRef.current;
@@ -250,16 +196,20 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
       }
     };
 
-    socket.on('webrtc-offer', handleOffer);
-    socket.on('webrtc-ice', handleIce);
+    meetingSocket.on('webrtc-offer', handleOffer);
+    meetingSocket.on('webrtc-ice', handleIce);
+
+    console.log('[MEETING] Listening for webrtc-offer/webrtc-ice on meeting socket', {
+      meetingId: currentMeetingId,
+      socketId: meetingSocket && meetingSocket.id,
+    });
 
     return () => {
-      socket.off('webrtc-offer', handleOffer);
-      socket.off('webrtc-ice', handleIce);
+      meetingSocket.off('webrtc-offer', handleOffer);
+      meetingSocket.off('webrtc-ice', handleIce);
       stopSession();
     };
-  }, [socket, meetingId, stopSession]);
-
+  }, [meetingSocket, meetingId, stopSession]);
 
 
 
@@ -268,13 +218,17 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
 
   const requestControl = useCallback(() => {
 
-    if (!socket) return;
+    if (!meetingSocket) return;
 
     if (!meetingId) return;
 
-    socket.emit('request-control', { meetingId });
+    console.log('[FRONTEND] Emitting request-control', meetingId);
 
-  }, [socket, meetingId]);
+    meetingSocket.emit('request-control', { meetingId });
+
+  }, [meetingSocket, meetingId]);
+
+
 
 
 

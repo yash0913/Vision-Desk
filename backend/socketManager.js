@@ -799,20 +799,70 @@ function createSocketServer(server, clientOrigin) {
           return;
         }
 
-        const hostDeviceId = String(session.hostDeviceId);
+        // NEW FLOW: require host browser approval before notifying native agent
+        const hostUserId = String(session.hostUserId);
 
-        const payload = {
+        console.log('[BACKEND] Broadcast incoming-control-request to meeting:', roomId);
+        io.to(roomId).emit('incoming-control-request', {
           meetingId: roomId,
-          hostUserId: String(session.hostUserId),
-          hostDeviceId,
-          requestedByUserId: String(requesterAuthUserId),
-        };
-
-        emitToDevice(hostDeviceId, 'request-control', payload);
-        emitToDevice(hostDeviceId, 'remote-access-request', payload);
+          hostUserId,
+          requesterUserId: String(requesterAuthUserId),
+        });
       } catch (err) {
         console.error('[request-control] error:', err && err.message);
         socket.emit('control-error', { message: err.message || 'request-control failed' });
+      }
+    });
+
+    // Host approves a pending meeting-native control request
+    socket.on('approve-control-request', async ({ meetingId, requesterUserId }) => {
+      try {
+        const roomId = String(meetingId || socket.data.roomId || '');
+        if (!roomId) return;
+
+        const hostAuthUserId = socket.userId;
+        if (!hostAuthUserId || String(hostAuthUserId).startsWith('guest-')) return;
+
+        const session = await MeetingControlSession.findOne({
+          meetingId: roomId,
+          isActive: true,
+        }).sort({ createdAt: -1 });
+
+        if (!session) {
+          socket.emit('control-error', { message: 'Host native agent not online' });
+          return;
+        }
+
+        if (String(session.hostUserId) !== String(hostAuthUserId)) {
+          socket.emit('control-error', { message: 'Only host can approve control requests' });
+          return;
+        }
+
+        const hostDeviceId = String(session.hostDeviceId);
+        console.log('[BACKEND] Host approved. Emitting remote-access-request to agent', hostDeviceId);
+
+        emitToDevice(hostDeviceId, 'remote-access-request', {
+          meetingId: roomId,
+          hostUserId: String(session.hostUserId),
+          hostDeviceId,
+          requestedByUserId: requesterUserId ? String(requesterUserId) : undefined,
+        });
+      } catch (err) {
+        console.error('[approve-control-request] error:', err && err.message);
+      }
+    });
+
+    // Host rejects a pending meeting-native control request
+    socket.on('reject-control-request', ({ meetingId, requesterUserId }) => {
+      try {
+        const roomId = String(meetingId || socket.data.roomId || '');
+        if (!roomId || !requesterUserId) return;
+        io.to(roomId).emit('control-request-rejected', {
+          meetingId: roomId,
+          requesterUserId: String(requesterUserId),
+        });
+      } catch (err) {
+        console.error('[reject-control-request] error:', err && err.message);
       }
     });
 

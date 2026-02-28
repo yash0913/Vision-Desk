@@ -337,31 +337,7 @@ function VideoRoomInner({
     [allParticipants, userId]
   );
 
-  // Agent Status Tracking
-  // Moved here to ensure controllerCandidates is defined
-  const [agentStatuses, setAgentStatuses] = React.useState({});
-
-  useEffect(() => {
-    let active = true;
-    const fetchStatuses = async () => {
-      if (!controllerCandidates || controllerCandidates.length === 0) return;
-
-      const newStatuses = {};
-      await Promise.all(
-        controllerCandidates.map(async (p) => {
-          if (!p.targetUserId) return;
-          const status = await checkUserAgentStatus(p.targetUserId);
-          if (active) newStatuses[p.id] = status;
-        })
-      );
-
-      if (active) setAgentStatuses((prev) => ({ ...prev, ...newStatuses }));
-    };
-
-    fetchStatuses();
-    const interval = setInterval(fetchStatuses, 30000); // 30s poll
-    return () => { active = false; clearInterval(interval); };
-  }, [controllerCandidates, checkUserAgentStatus]);
+  const isAgentOnline = true;
 
   const {
     hasScreenShare,
@@ -441,6 +417,49 @@ function VideoRoomInner({
 
   return (
     <div className="flex flex-col w-full h-screen bg-slate-950 text-white overflow-hidden relative">
+      {showControlModal && incomingControlRequest && (
+        <div className="pointer-events-auto absolute inset-0 z-[60] flex items-center justify-center bg-black/60">
+          <div className="w-[420px] max-w-[92vw] rounded-xl bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+              <div className="text-sm font-semibold">Remote Control Request</div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowControlModal(false);
+                  setIncomingControlRequest(null);
+                }}
+                className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded border border-slate-700 hover:border-slate-500"
+              >
+                Close
+              </button>
+            </div>
+            <div className="px-4 py-4 text-xs text-slate-200 space-y-3">
+              <div>
+                A participant requested control of your PC.
+              </div>
+              <div className="text-[11px] text-slate-400 break-all">
+                Requester: {String(incomingControlRequest.requesterUserId || '')}
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={rejectControlRequest}
+                  className="text-xs px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-white"
+                >
+                  Reject
+                </button>
+                <button
+                  type="button"
+                  onClick={approveControlRequest}
+                  className="text-xs px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white"
+                >
+                  Accept
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="absolute top-4 right-4 z-50 pointer-events-auto">
         <button
           type="button"
@@ -623,41 +642,21 @@ function VideoRoomInner({
                         Remote control unavailable: no participants with a resolved backend userId.
                       </div>
                     ) : (
-                      controllerCandidates.map((p) => {
-                        const isAgentOnline = agentStatuses[p.id] === 'online';
-                        const statusColor = isAgentOnline ? 'bg-emerald-500' : 'bg-slate-600';
-                        const statusText = isAgentOnline ? 'Ready' : 'Agent Offline';
-
-                        return (
-                          <div
-                            key={p.id}
-                            className="flex items-center justify-between rounded-md bg-slate-800/80 px-2 py-1"
+                      <div className="flex items-center justify-between rounded-md bg-slate-800/80 px-2 py-2">
+                        <div className="flex flex-col">
+                          <span className="text-[11px] font-medium text-slate-100">Host PC</span>
+                          <span className="text-[10px] text-slate-500">Meeting remote control targets the host native agent.</span>
+                        </div>
+                        <div className="flex flex-col items-end gap-0.5">
+                          <button
+                            className="bg-blue-500 text-white px-3 py-1 rounded disabled:opacity-50"
+                            disabled={!isAgentOnline}
+                            onClick={() => requestControl()}
                           >
-                            <div className="flex flex-col">
-                              <span className="text-[11px] font-medium text-slate-100 flex items-center gap-2">
-                                {p.name || 'Participant'}
-                                <span className={`w-1.5 h-1.5 rounded-full ${statusColor}`} title={statusText}></span>
-                              </span>
-                              <span className="text-[10px] text-slate-500 break-all">
-                                {p.targetUserId ? (
-                                  isAgentOnline ? 'Agent Ready' : 'Agent Not Detected'
-                                ) : 'Not Registered'}
-                              </span>
-                            </div>
-                            <div className="flex flex-col items-end gap-0.5">
-                              <button
-                                className="bg-blue-500 text-white px-3 py-1 rounded disabled:opacity-50"
-                                disabled={!isAgentOnline}
-                                onClick={() =>
-                                  requestControl()
-                                }
-                              >
-                                Request Control
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
+                            Request Control
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
