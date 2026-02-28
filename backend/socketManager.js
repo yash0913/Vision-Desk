@@ -26,38 +26,23 @@ const Device = require('./models/Device');
 
 const { verifySessionToken, createSessionToken } = require('./utils/sessionToken');
 
-
-
 let ioInstance = null;
-
 let roomsMap = null; // Map<roomId, Map<userId, {socketId, userName, isHost, authUserId}>>
 
 const onlineUsersByPhone = new Map(); // Map<phoneString, Set<socketId>>
-
 const onlineUsersById = new Map(); // Map<userId, Set<socketId>>
-
 const onlineDevicesById = new Map(); // Map<deviceId, Set<socketId>>
-
 const deviceRegistryById = new Map(); // Map<deviceId, { userId, deviceType, socketId, lastSeen, isOnline }>
-
 const pendingSignalsByDevice = new Map(); // Map<deviceId, Array<{event,payload}>>
-
 const metrics = { activeSessions: 0, offersRelayed: 0, iceFailures: 0, datachannelMsgs: 0 };
-
-
+const userSockets = new Map(); // Map<userId, Set<socketId>>
 
 /**
-
  * Check if a user (by authUserId) is currently in a meeting room.
-
  * Used by REST API for Option A authorization.
-
  */
-
 function isUserInMeeting(roomId, authUserId) {
-
   if (!roomsMap || !roomId || !authUserId) return false;
-
   const roomUsers = roomsMap.get(String(roomId));
 
   if (!roomUsers) return false;
@@ -710,6 +695,15 @@ function createSocketServer(server, clientOrigin) {
       try {
         if (!deviceId || !userId || !type) {
           console.warn('[REGISTER-DEVICE] Missing required fields:', { deviceId, userId, type });
+          return;
+        }
+
+        // Prevent guests from registering as devices
+        if (socket.userId && String(socket.userId).startsWith('guest-')) {
+          console.warn('[REGISTER-DEVICE] Guest users cannot register as devices:', {
+            socketUserId: socket.userId,
+            deviceId: deviceId
+          });
           return;
         }
 
