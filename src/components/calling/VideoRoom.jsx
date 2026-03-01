@@ -29,7 +29,7 @@ import { MeetingRemoteControlProvider, useMeetingRemoteControl } from './meeting
 import RemoteVideoArea from '../../modules/desklink/components/RemoteVideoArea.jsx';
 
 import IncomingRequestModal from '../../modules/desklink/components/IncomingRequestModal.jsx';
-
+import RemoteControlPanel from '../../modules/desklink/components/RemoteControlPanel.jsx';
 import { useDeskLinkSocket } from '../../modules/desklink/hooks/useDeskLinkSocket.js';
 import { getSocket } from '../../socket.js';
 
@@ -103,6 +103,7 @@ function VideoRoomInner({
   const [isHostPanelOpen, setIsHostPanelOpen] = React.useState(false);
 
   const [selectedParticipantId, setSelectedParticipantId] = React.useState('');
+  const [isActionLogOpen, setIsActionLogOpen] = React.useState(false);
 
 
 
@@ -181,29 +182,21 @@ function VideoRoomInner({
     isPanelOpen: isRemoteControlOpen,
 
     togglePanel: toggleRemoteControlPanel,
-
     remoteStream: remoteDesktopStream,
-
     stats: remoteStats,
-
     permissions,
-
     sessionConfig,
-
     sendControlMessage,
-
+    sendRemoteAction,
+    actionLogs,
+    activeControllerName,
+    setOnDataMessage,
     requestControlForUser,
-
     incomingRequest,
-
     acceptIncomingRequest,
-
     rejectIncomingRequest,
-
     endControl,
-
     checkUserAgentStatus, // Exported from context
-
     meetingSocketReady, // Exported from context
     meetingSocket, // Exported from context
   } = useMeetingRemoteControl();
@@ -221,6 +214,13 @@ function VideoRoomInner({
       endControl();
     }
   }, [meetingEnded, sessionConfig, endControl]);
+
+  // Auto-open action log for host if being controlled
+  useEffect(() => {
+    if (sessionConfig?.role === 'receiver') {
+      setIsActionLogOpen(true);
+    }
+  }, [sessionConfig?.role]);
 
   // Debug logging for remote desktop
 
@@ -289,11 +289,8 @@ function VideoRoomInner({
       console.error('Failed to initialize local media stream:', error);
 
     });
-
     // We intentionally run this once on mount to mirror the original behavior
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
-
   }, []);
 
 
@@ -447,7 +444,6 @@ function VideoRoomInner({
           if (active) newStatuses[p.id] = status;
 
         })
-
       );
 
 
@@ -785,6 +781,29 @@ function VideoRoomInner({
                             sessionConfig?.sessionId ? 'Active Session' : 'No one'
                           )}
                         </div>
+                        {/* Active Session Label */}
+                        {sessionConfig && (
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                              <div className="text-[11px] font-medium text-emerald-400">
+                                {sessionConfig?.role === 'caller'
+                                  ? `Currently controlling ${activeControllerName || 'Remote PC'}`
+                                  : `Being controlled by ${activeControllerName || 'Remote User'}`
+                                }
+                              </div>
+                            </div>
+                            {sessionConfig?.role === 'receiver' && (
+                              <button
+                                onClick={() => setIsActionLogOpen(!isActionLogOpen)}
+                                className={`text-[9px] px-2 py-1 rounded transition-colors ${isActionLogOpen ? 'bg-emerald-600 font-bold text-white' : 'bg-slate-700 text-slate-300'
+                                  }`}
+                              >
+                                {isActionLogOpen ? 'LOG OPEN' : 'VIEW LOG'}
+                              </button>
+                            )}
+                          </div>
+                        )}
                         <div className="mt-3">
                           <button
                             type="button"
@@ -947,6 +966,8 @@ function VideoRoomInner({
               permissions={permissions}
 
               stats={remoteStats}
+
+              sendRemoteAction={sendRemoteAction}
 
             />
 
@@ -1312,6 +1333,12 @@ function VideoRoomInner({
         />
 
       )}
+
+      {/* Host Action Log Side Panel */}
+      <RemoteControlPanel
+        isOpen={isActionLogOpen}
+        onClose={() => setIsActionLogOpen(false)}
+      />
 
     </div>
 

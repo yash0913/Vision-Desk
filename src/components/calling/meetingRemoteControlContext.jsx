@@ -86,6 +86,10 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
 
   const [incomingRequest, setIncomingRequest] = useState(null); // owner side
 
+  const [actionLogs, setActionLogs] = useState([]);
+
+  const [activeControllerName, setActiveControllerName] = useState(null);
+
 
 
 
@@ -562,14 +566,30 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
     // 3. Reset local UI state
 
     setSessionConfig(null);
-
     setActiveSessionId(null);
 
   }, [stopSession, sessionConfig, activeSessionId, token]);
 
+  const addLog = useCallback((message, type = 'info') => {
+    setActionLogs(prev => [...prev, {
+      id: Date.now() + Math.random(),
+      message,
+      type,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    }].slice(-50)); // Keep last 50 logs
+  }, []);
 
 
 
+  const sendRemoteAction = useCallback((actionType, actionDetails) => {
+    if (!socket || !activeSessionId) return;
+
+    socket.emit('remote-action', {
+      sessionId: activeSessionId,
+      actionType,
+      actionDetails,
+    });
+  }, [socket, activeSessionId]);
 
 
 
@@ -1197,180 +1217,116 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
     };
 
 
+    const handleHostActionLog = (payload) => {
+      console.log('[MeetingRemoteControl] 📝 Received action log:', payload);
+      const actionText = payload.actionType === 'mouse_click'
+        ? `Clicked ${payload.actionDetails.button || 'left'} button`
+        : payload.actionType === 'scroll'
+          ? 'Scrolled'
+          : payload.actionType === 'key'
+            ? `Pressed key: ${payload.actionDetails.key}`
+            : payload.actionType === 'session_start'
+              ? 'Session started'
+              : payload.actionType === 'session_end'
+                ? 'Session ended'
+                : payload.actionType;
 
-
-
-
-
-    const handleSessionEnded = (payload) => {
-
-      console.log('[MeetingRemoteControl] 🛑 session-ended received:', payload);
-
-      stopSession();
-
-      setSessionConfig(null);
-
-      setActiveSessionId(null);
-
+      addLog(actionText, 'action');
+      if (payload.actorUserName) {
+        setActiveControllerName(payload.actorUserName);
+      }
     };
 
+    const handleSessionStartExtended = (payload) => {
+      handleSessionStart(payload);
+      addLog('Remote session initiated', 'system');
+    };
 
+    const handleSessionEndedExtended = (payload) => {
+      handleSessionEnded(payload);
+      addLog('Remote session ended', 'system');
+      setActiveControllerName(null);
+    };
 
-    socket.on('desklink-session-start', handleSessionStart);
-
-    socket.on('desklink-session-ended', handleSessionEnded);
-
-
+    socket.on('desklink-session-start', handleSessionStartExtended);
+    socket.on('desklink-session-ended', handleSessionEndedExtended);
+    socket.on('host-action-log', handleHostActionLog);
 
     return () => {
-
-      socket.off('desklink-session-start', handleSessionStart);
-
-      socket.off('desklink-session-ended', handleSessionEnded);
-
+      socket.off('desklink-session-start', handleSessionStartExtended);
+      socket.off('desklink-session-ended', handleSessionEndedExtended);
+      socket.off('host-action-log', handleHostActionLog);
     };
 
-
-
-  }, [socket, token, startAsCaller, startAsReceiver, activeSessionId, localAuthUserId]);
-
-
-
-
-
+  }, [socket, token, startAsCaller, startAsReceiver, activeSessionId, localAuthUserId, addLog, handleSessionStart, handleSessionEnded]);
 
 
   const value = {
 
-
-
     // UI state
-
-
 
     isPanelOpen,
 
-
-
     openPanel,
 
-
-
     closePanel,
-
-
 
     togglePanel,
 
 
-
-
-
-
-
     // Session state
-
-
 
     sessionConfig,
 
-
-
     beginControl,
 
-
-
     endControl,
-
-
 
     pendingSession,
 
 
-
-
-
-
-
     // Incoming owner-side request (for future in-meeting modal)
-
-
 
     incomingRequest,
 
-
-
     acceptIncomingRequest,
-
-
 
     rejectIncomingRequest,
 
 
-
-
-
-
-
     // Permissions (owner controls)
 
-
-
     permissions,
-
-
 
     setPermissions,
 
 
-
-
-
-
-
     // Request flow from controller side
 
-
-
     requestControlForUser,
-
-
 
     checkUserAgentStatus,
 
 
-
-
-
-
-
     // WebRTC state for remote desktop
-
-
 
     connectionState,
 
-
-
     iceConnectionState,
-
-
 
     remoteStream,
 
-
-
     stats,
-
-
 
     sendControlMessage,
 
+    sendRemoteAction,
 
+    actionLogs,
+
+    activeControllerName,
 
     setOnDataMessage,
-
-
 
     setOnConnected,
 

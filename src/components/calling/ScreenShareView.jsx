@@ -14,6 +14,7 @@ export default function ScreenShareView({
   sessionToken,
   permissions,
   stats,
+  sendRemoteAction,
 }) {
   if (!screenStream) {
     return null;
@@ -35,6 +36,7 @@ export default function ScreenShareView({
             token={sessionToken}
             permissions={permissions}
             stats={stats}
+            sendRemoteAction={sendRemoteAction}
           />
         ) : (
           // Use ScreenShareTile for regular screen share

@@ -13,6 +13,7 @@ export default function RemoteVideoArea({
   token,
   permissions,
   stats,
+  sendRemoteAction,
 }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
@@ -24,13 +25,13 @@ export default function RemoteVideoArea({
     console.log('[RemoteVideoArea] stream exists:', !!stream);
     console.log('[RemoteVideoArea] videoRef exists:', !!videoRef.current);
     console.log('[RemoteVideoArea] stream tracks count:', stream?.getTracks()?.length || 0);
-    
+
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
       console.log('[RemoteVideoArea] ✓ Stream set to video element');
       console.log('[RemoteVideoArea] Stream tracks count:', stream.getTracks()?.length || 0);
       console.log('[RemoteVideoArea] Video srcObject exists:', !!videoRef.current.srcObject);
-      
+
       // Force video to play
       videoRef.current.play().catch(err => {
         console.log('[RemoteVideoArea] Play error:', err);
@@ -70,6 +71,9 @@ export default function RemoteVideoArea({
     const button = e.button === 0 ? 'left' : e.button === 1 ? 'middle' : 'right';
     const message = createMouseClickMessage(x, y, button, sessionId, token);
     onControlMessage(message);
+
+    // Log action
+    sendRemoteAction?.('mouse_click', { button, x: Math.round(x * 100), y: Math.round(y * 100) });
   };
 
   const handleWheel = (e) => {
@@ -78,6 +82,20 @@ export default function RemoteVideoArea({
     e.preventDefault();
     const message = createMouseWheelMessage(e.deltaX, e.deltaY, sessionId, token);
     onControlMessage(message);
+
+    // Log action
+    sendRemoteAction?.('scroll', { deltaX: e.deltaX, deltaY: e.deltaY });
+  };
+
+  const handleKeyDown = (e) => {
+    if (!permissions?.allowControl) return;
+
+    // Prevent default common shortcuts
+    if (e.ctrlKey || e.altKey || (e.key.length === 1 && !e.ctrlKey && !e.metaKey)) {
+      // Logic for sending key message would go here if implemented in protocol
+      // For now, we just log it for the host
+      sendRemoteAction?.('key', { key: e.key, ctrl: e.ctrlKey, alt: e.altKey, shift: e.shiftKey });
+    }
   };
 
   const handleMouseLeave = () => {
@@ -92,6 +110,8 @@ export default function RemoteVideoArea({
       onClick={handleMouseClick}
       onWheel={handleWheel}
       onMouseLeave={handleMouseLeave}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
       onContextMenu={(e) => e.preventDefault()}
     >
       <video

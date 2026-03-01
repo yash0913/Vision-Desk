@@ -488,12 +488,12 @@ function createSocketServer(server, clientOrigin) {
 
       socket.userId = String(user._id);
 
-      
+
       // Track this socket
       trackUserSocket(userSockets, socket.userId, socket.id);
       trackUserSocket(onlineUsersByPhone, socket.userPhone, socket.id);
       trackUserSocket(onlineUsersById, socket.userId, socket.id);
-      
+
       return next();
 
     } catch (err) {
@@ -1250,6 +1250,39 @@ function createSocketServer(server, clientOrigin) {
     });
 
 
+
+    /**
+     * Listen for remote actions from the controller (caller)
+     * and relay them to the host (receiver) for logging.
+     */
+    socket.on('remote-action', async ({ sessionId, actionType, actionDetails }) => {
+      try {
+        if (!sessionId || !actionType) return;
+
+        // Verify session and that the sender is the caller
+        const session = await validateSessionAccess(sessionId, socket.userId);
+        if (!session) return;
+
+        if (String(session.callerUserId) !== String(socket.userId)) {
+          // Only the controller can emit actions
+          return;
+        }
+
+        const payload = {
+          sessionId,
+          actorUserId: socket.userId,
+          actorUserName: socket.data.userName || 'Remote User',
+          actionType,
+          actionDetails: actionDetails || {},
+          timestamp: new Date().toISOString(),
+        };
+
+        // Forward to host (receiver)
+        emitToUser(session.receiverUserId, 'host-action-log', payload);
+      } catch (err) {
+        console.error('[remote-action] error:', err.message);
+      }
+    });
 
     /**
 
@@ -2486,19 +2519,19 @@ function createSocketServer(server, clientOrigin) {
     // Handle socket disconnection - clean up device registrations
     socket.on('disconnect', () => {
       console.log(`[DISCONNECT] Socket ${socket.id} disconnected`);
-      
+
       // Clean up device registration if this socket was registered as a device
       if (socket.deviceId && deviceRegistryById.has(socket.deviceId)) {
         console.log(`[DEVICE REMOVED] ${socket.deviceId} (${socket.deviceType})`);
         deviceRegistryById.delete(socket.deviceId);
         untrackUserSocket(onlineDevicesById, socket.deviceId, socket.id);
       }
-      
+
       // Clean up user tracking
       if (socket.userId) {
         untrackUserSocket(onlineUsersById, socket.userId, socket.id);
       }
-      
+
       if (socket.userPhone) {
         untrackUserSocket(onlineUsersByPhone, socket.userPhone, socket.id);
       }
