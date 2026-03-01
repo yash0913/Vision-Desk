@@ -200,6 +200,8 @@ function VideoRoomInner({
 
     rejectIncomingRequest,
 
+    endControl,
+
     checkUserAgentStatus, // Exported from context
 
     meetingSocketReady, // Exported from context
@@ -211,6 +213,14 @@ function VideoRoomInner({
 
   // STEP 2: Add derived state for remote desktop
   const isRemoteDesktopActive = !!remoteDesktopStream;
+
+  // Auto-terminate remote session if meeting ends
+  useEffect(() => {
+    if (meetingEnded && sessionConfig) {
+      console.log('[VideoRoom] Meeting ended, auto-terminating remote session...');
+      endControl();
+    }
+  }, [meetingEnded, sessionConfig, endControl]);
 
   // Debug logging for remote desktop
 
@@ -498,26 +508,21 @@ function VideoRoomInner({
 
   const handleLeave = () => {
 
+    // Terminate remote control if active
+    if (sessionConfig) {
+      console.log('[VideoRoom] User leaving, terminating remote session...');
+      endControl();
+    }
+
     if (isHost) {
-
       // Host ends the meeting for everyone
-
       endMeeting();
-
-      // onLeave will be called by handleMeetingEnded in useRoomClient
-
     } else {
-
       // Regular participant just leaves
-
       leaveRoom();
-
       if (onLeave) {
-
         onLeave();
-
       }
-
     }
 
   };
@@ -786,6 +791,9 @@ function VideoRoomInner({
                             onClick={() => {
                               if (sendControlMessage) {
                                 sendControlMessage({ type: 'end_session' });
+                              }
+                              if (endControl) {
+                                endControl();
                               }
                             }}
                             disabled={!sessionConfig}

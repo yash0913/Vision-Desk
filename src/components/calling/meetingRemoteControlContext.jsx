@@ -523,19 +523,49 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
 
 
 
-  const endControl = useCallback(() => {
+  const endControl = useCallback(async () => {
+
+    const sessionId = sessionConfig?.sessionId || activeSessionId;
 
 
+
+    console.log('[MeetingRemoteControl] Ending control session:', sessionId);
+
+
+
+    // 1. Stop local WebRTC/Socket state
 
     stopSession();
 
 
 
+    // 2. Notify backend to mark session as ended
+
+    if (sessionId && token) {
+
+      try {
+
+        await desklinkApi.completeRemote(token, { sessionId });
+
+        console.log('[MeetingRemoteControl] Backend notified of session completion');
+
+      } catch (err) {
+
+        console.error('[MeetingRemoteControl] Failed to notify backend of session completion:', err);
+
+      }
+
+    }
+
+
+
+    // 3. Reset local UI state
+
     setSessionConfig(null);
 
+    setActiveSessionId(null);
 
-
-  }, [stopSession]);
+  }, [stopSession, sessionConfig, activeSessionId, token]);
 
 
 
@@ -1172,17 +1202,31 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
 
 
 
+    const handleSessionEnded = (payload) => {
+
+      console.log('[MeetingRemoteControl] 🛑 session-ended received:', payload);
+
+      stopSession();
+
+      setSessionConfig(null);
+
+      setActiveSessionId(null);
+
+    };
+
+
+
     socket.on('desklink-session-start', handleSessionStart);
+
+    socket.on('desklink-session-ended', handleSessionEnded);
 
 
 
     return () => {
 
-
-
       socket.off('desklink-session-start', handleSessionStart);
 
-
+      socket.off('desklink-session-ended', handleSessionEnded);
 
     };
 
