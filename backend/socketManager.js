@@ -286,7 +286,48 @@ function createSocketServer(server, clientOrigin) {
 
   // =========================================================
 
-  // Map<roomId, Map<ownerAuthUserId, { activeController: string|null, pendingRequests: Array<{ userId: string, requestedAt: number }> }>>
+  const meetingAccessState = new Map();
+
+  const remoteAccessControl = new Map(); // Map<roomId, { currentController: userId | null, pendingRequests: Set<userId>, hostOverride: boolean }>
+
+  function getRemoteAccessState(roomId) {
+    if (!remoteAccessControl.has(roomId)) {
+      remoteAccessControl.set(roomId, {
+        currentController: null,
+        pendingRequests: new Set(),
+        hostOverride: false
+      });
+    }
+    return remoteAccessControl.get(roomId);
+  }
+
+  function broadcastRemoteAccessState(roomId) {
+    const state = getRemoteAccessState(roomId);
+    const roomUsers = rooms.get(roomId);
+    if (!roomUsers) return;
+    const payload = {
+      currentController: state.currentController,
+      pendingRequests: Array.from(state.pendingRequests),
+      hostOverride: state.hostOverride
+    };
+    roomUsers.forEach((userData, userId) => {
+      const socket = io.sockets.sockets.get(userData.socketId);
+      if (socket) {
+        socket.emit('remote-access-state-update', payload);
+      }
+    });
+  }
+
+  function getAuthUserIdForSocket(sock) {
+    const id = sock.userId;
+
+    if (!id || String(id).startsWith('guest-')) return null;
+
+    return String(id);
+
+  }
+
+  function findMeetingUserByAuth(roomId, authUserId) {
     const roomUsers = rooms.get(roomId);
 
     if (!roomUsers || !authUserId) return null;
