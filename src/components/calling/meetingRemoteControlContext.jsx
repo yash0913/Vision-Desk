@@ -708,10 +708,7 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
 
 
   const acceptIncomingRequest = useCallback(
-
-
-
-    async (acceptPermissions) => {
+    async (providedPermissions) => {
 
 
 
@@ -771,17 +768,9 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
 
 
 
-        sessionId: incomingRequest.sessionId,
-
-
-
         targetDeviceId,
 
-
-
-        permissions: acceptPermissions
-
-
+        permissions: providedPermissions || permissions
 
       });
 
@@ -801,13 +790,9 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
 
           sessionId: incomingRequest.sessionId,
 
-
-
           receiverDeviceId: targetDeviceId,
 
-
-
-          permissions: acceptPermissions,
+          permissions: providedPermissions || permissions,
 
 
 

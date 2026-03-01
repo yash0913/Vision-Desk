@@ -68,6 +68,10 @@ const remoteSessionSchema = new mongoose.Schema(
     endedAt: {
       type: Date,
     },
+    fromMeeting: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

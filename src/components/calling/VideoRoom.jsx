@@ -741,14 +741,14 @@ function VideoRoomInner({
                           <div className="flex items-center gap-1.5 flex-shrink-0 ml-1">
                             <button
                               type="button"
-                              onClick={() => acceptIncomingRequest(incomingRequest.requestId)}
+                              onClick={() => acceptIncomingRequest()}
                               className="text-[10px] px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white"
                             >
                               Accept
                             </button>
                             <button
                               type="button"
-                              onClick={() => rejectIncomingRequest(incomingRequest.requestId)}
+                              onClick={() => rejectIncomingRequest()}
                               className="text-[10px] px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-white"
                             >
                               Reject
@@ -806,7 +806,7 @@ function VideoRoomInner({
                             <button
                               type="button"
                               onClick={() => {
-                                acceptIncomingRequest(incomingRequest.requestId);
+                                acceptIncomingRequest();
                               }}
                               className="w-full flex items-center justify-between rounded-md bg-slate-700 hover:bg-slate-600 px-2 py-2 transition-colors duration-200"
                             >
