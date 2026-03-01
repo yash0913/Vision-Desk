@@ -279,14 +279,14 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
   }, [agentStatus, socket, checkAgentStatus]);
 
   useEffect(() => {
-    if (socket) {
-      console.log('[MeetingRemoteControl] UI Socket State:', {
-        id: socket.id,
-        connected: socket.connected,
-        authenticated: !!token,
-        tokenPrefix: token ? token.substring(0, 10) + '...' : 'NONE'
-      });
-    }
+    if (!socket) return;
+
+    console.log('[MeetingRemoteControl] UI Socket State:', {
+      id: socket.id,
+      connected: socket.connected,
+      authenticated: !!token,
+      tokenPrefix: token ? token.substring(0, 10) + '...' : 'NONE'
+    });
 
     const anyListener = (event, ...args) => {
       console.log(`[MeetingRemoteControl] 🛰️ Socket Event: ${event}`, args);
@@ -295,13 +295,16 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
 
     const handleStatusChange = (payload) => {
       console.log('[MeetingRemoteControl] 🤖 Agent status change:', payload);
-      // Optional: Check if deviceId matches if we know it locally
       setAgentStatus(payload.status);
     };
 
     socket.on('agent-status-change', handleStatusChange);
-    return () => socket.off('agent-status-change', handleStatusChange);
-  }, [socket]);
+
+    return () => {
+      socket.offAny(anyListener);
+      socket.off('agent-status-change', handleStatusChange);
+    };
+  }, [socket, token]);
 
   // Provisioning safety timeout
   useEffect(() => {

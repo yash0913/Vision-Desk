@@ -511,10 +511,17 @@ function createSocketServer(server, clientOrigin) {
 
 
   io.on('connection', (socket) => {
+    console.log('[SOCKET] New connection:', socket.id, 'userId:', socket.userId);
 
-    console.log('User connected:', socket.id, socket.userPhone);
-
-
+    socket.on('register-device', (payload) => {
+      console.log('[SOCKET] register-device payload:', payload);
+      // Ensure the socket has the userId from the payload if it wasn't authenticated via JWT
+      if (payload.userId && !socket.userId) {
+        socket.userId = String(payload.userId);
+        trackUserSocket(onlineUsersById, socket.userId, socket.id);
+        console.log('[SOCKET] Manually linked socket', socket.id, 'to userId', socket.userId);
+      }
+    });
 
     trackUserSocket(onlineUsersByPhone, socket.userPhone, socket.id);
 
