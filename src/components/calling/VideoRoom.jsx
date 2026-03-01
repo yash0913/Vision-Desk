@@ -36,6 +36,10 @@ import { MousePointer2 } from 'lucide-react';
 
 import { WebRTCDebugPanel } from "./WebRTCDebugPanel";
 
+import { RemoteAccessPanel } from "./RemoteAccessPanel";
+
+import { useRemoteInputControl } from "../../modules/desklink/hooks/useRemoteInputControl.js";
+
 
 
 function shortId(id) {
@@ -103,6 +107,15 @@ function VideoRoomInner({
   const [isHostPanelOpen, setIsHostPanelOpen] = React.useState(false);
 
   const [selectedParticipantId, setSelectedParticipantId] = React.useState('');
+
+  // Remote Access Control State
+  const [remoteAccessState, setRemoteAccessState] = React.useState({
+    currentController: null,
+    pendingRequests: [],
+    hostOverride: false
+  });
+
+  const [hasRemoteControl, setHasRemoteControl] = React.useState(false);
 
 
 
@@ -173,6 +186,73 @@ function VideoRoomInner({
     initializeLocalStream,
 
   } = useRoomClient(roomId, userId, userName, isHost, onLeave, derivedLocalAuthUserId);
+
+  // Remote Access Control Socket Management
+  const socket = getSocket();
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleRemoteAccessStateUpdate = (state) => {
+      setRemoteAccessState(state);
+      setHasRemoteControl(state.currentController === userId && !state.hostOverride);
+    };
+
+    const handleRemoteAccessGranted = ({ roomId: grantedRoomId, grantedBy }) => {
+      if (grantedRoomId === roomId) {
+        setHasRemoteControl(true);
+        console.log('[VideoRoom] Remote access granted by', grantedBy);
+      }
+    };
+
+    const handleRemoteAccessRevoked = ({ reason, newControllerId }) => {
+      setHasRemoteControl(false);
+      console.log('[VideoRoom] Remote access revoked:', reason);
+    };
+
+    const handleRemoteAccessRejected = ({ rejectedBy }) => {
+      console.log('[VideoRoom] Remote access request rejected by', rejectedBy);
+    };
+
+    const handleHostOverrideStart = ({ hostId }) => {
+      setRemoteAccessState(prev => ({ ...prev, hostOverride: true }));
+      setHasRemoteControl(false);
+      console.log('[VideoRoom] Host override started');
+    };
+
+    const handleHostOverrideStop = ({ hostId }) => {
+      setRemoteAccessState(prev => ({ ...prev, hostOverride: false }));
+      setHasRemoteControl(remoteAccessState.currentController === userId);
+      console.log('[VideoRoom] Host override stopped');
+    };
+
+    // Register listeners
+    socket.on('remote-access-state-update', handleRemoteAccessStateUpdate);
+    socket.on('remote-access-granted', handleRemoteAccessGranted);
+    socket.on('remote-access-revoked', handleRemoteAccessRevoked);
+    socket.on('remote-access-rejected', handleRemoteAccessRejected);
+    socket.on('host-override-start', handleHostOverrideStart);
+    socket.on('host-override-stop', handleHostOverrideStop);
+
+    // Request initial state
+    socket.emit('get-remote-access-state', { roomId });
+
+    return () => {
+      socket.off('remote-access-state-update', handleRemoteAccessStateUpdate);
+      socket.off('remote-access-granted', handleRemoteAccessGranted);
+      socket.off('remote-access-revoked', handleRemoteAccessRevoked);
+      socket.off('remote-access-rejected', handleRemoteAccessRejected);
+      socket.off('host-override-start', handleHostOverrideStart);
+      socket.off('host-override-stop', handleHostOverrideStop);
+    };
+  }, [socket, roomId, userId, remoteAccessState.currentController]);
+
+  // Remote Input Control Hook
+  const { isActive: isInputActive } = useRemoteInputControl(
+    roomId, 
+    hasRemoteControl, 
+    remoteAccessState.hostOverride
+  );
 
 
 
@@ -1702,6 +1782,13 @@ function VideoRoomInner({
         isRemoteControlOpen={isRemoteControlOpen}
 
         onToggleRemoteControl={toggleRemoteControlPanel}
+
+        // Remote Access Control Props
+        userId={userId}
+        userName={userName}
+        participants={allParticipants}
+        remoteAccessState={remoteAccessState}
+        hasRemoteControl={hasRemoteControl}
 
       />
 

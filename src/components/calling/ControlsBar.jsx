@@ -4,6 +4,7 @@ import {
   Users, MessageSquare, Smile, Settings, Info,
   MoreVertical, MousePointer2,
 } from 'lucide-react';
+import { RemoteAccessPanel } from './RemoteAccessPanel.jsx';
 
 export default function ControlsBar({
   isAudioEnabled, isVideoEnabled, isScreenSharing, onToggleAudio, onToggleVideo,
@@ -11,6 +12,8 @@ export default function ControlsBar({
   onToggleParticipants, onToggleChat, onToggleReactions, onToggleHostTools,
   canUseMic = true, canUseCamera = true, isChatDisabled = false,
   isRemoteControlOpen = false, onToggleRemoteControl,
+  // Remote Access Control Props
+  userId, userName, participants = [], remoteAccessState, hasRemoteControl
 }) {
 
   // Helper for button styles to keep code clean
@@ -91,6 +94,19 @@ export default function ControlsBar({
           </button>
         </div>
       </div>
+      
+      {/* Remote Access Panel Overlay */}
+      {isRemoteControlOpen && (
+        <div className="absolute bottom-full right-0 mb-4 w-80 max-h-96 overflow-y-auto">
+          <RemoteAccessPanel
+            roomId={roomId}
+            userId={userId}
+            userName={userName}
+            isHost={isHost}
+            participants={participants}
+          />
+        </div>
+      )}
     </div>
   );
 }

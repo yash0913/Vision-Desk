@@ -287,25 +287,6 @@ function createSocketServer(server, clientOrigin) {
   // =========================================================
 
   // Map<roomId, Map<ownerAuthUserId, { activeController: string|null, pendingRequests: Array<{ userId: string, requestedAt: number }> }>>
-
-  const meetingAccessState = new Map();
-
-
-
-  function getAuthUserIdForSocket(sock) {
-
-    const id = sock.userId;
-
-    if (!id || String(id).startsWith('guest-')) return null;
-
-    return String(id);
-
-  }
-
-
-
-  function findMeetingUserByAuth(roomId, authUserId) {
-
     const roomUsers = rooms.get(roomId);
 
     if (!roomUsers || !authUserId) return null;
@@ -2483,9 +2464,317 @@ function createSocketServer(server, clientOrigin) {
 
     });
 
+    // =========================================================
+    // REMOTE ACCESS CONTROL EVENTS
+    // =========================================================
+
+    // Request remote access
+    socket.on('remote-access-request', ({ roomId }) => {
+      try {
+        if (!socket.data.roomId || !socket.data.userId) {
+          return socket.emit('error', { message: 'Not in a room' });
+        }
+
+        const roomUsers = rooms.get(roomId);
+        if (!roomUsers) {
+          return socket.emit('error', { message: 'Room not found' });
+        }
+
+        const requester = roomUsers.get(socket.data.userId);
+        if (!requester) {
+          return socket.emit('error', { message: 'User not in room' });
+        }
+
+        // Don't allow hosts to request access
+        if (requester.isHost) {
+          return socket.emit('error', { message: 'Hosts cannot request access' });
+        }
+
+        const state = getRemoteAccessState(roomId);
+        
+        // Prevent duplicate requests
+        if (state.pendingRequests.has(socket.data.userId)) {
+          return socket.emit('error', { message: 'Access already requested' });
+        }
+
+        // Don't allow if already controller
+        if (state.currentController === socket.data.userId) {
+          return socket.emit('error', { message: 'Already have control' });
+        }
+
+        // Add to pending requests
+        state.pendingRequests.add(socket.data.userId);
+        
+        console.log(`[Remote Access] ${requester.userName} requested access to room ${roomId}`);
+        
+        // Broadcast updated state
+        broadcastRemoteAccessState(roomId);
+        
+        // Notify host specifically
+        roomUsers.forEach((userData, userId) => {
+          if (userData.isHost) {
+            const hostSocket = io.sockets.sockets.get(userData.socketId);
+            if (hostSocket) {
+              hostSocket.emit('remote-access-requested', {
+                requesterId: socket.data.userId,
+                requesterName: requester.userName,
+                roomId
+              });
+            }
+          }
+        });
+
+      } catch (err) {
+        console.error('[Remote Access] request error:', err);
+        socket.emit('error', { message: 'Request failed' });
+      }
+    });
+
+    // Accept remote access (host only)
+    socket.on('remote-access-accept', ({ roomId, requesterId }) => {
+      try {
+        const roomUsers = rooms.get(roomId);
+        if (!roomUsers) {
+          return socket.emit('error', { message: 'Room not found' });
+        }
+
+        const hostUser = roomUsers.get(socket.data.userId);
+        if (!hostUser || !hostUser.isHost) {
+          return socket.emit('error', { message: 'Only hosts can grant access' });
+        }
+
+        const state = getRemoteAccessState(roomId);
+        
+        // Remove from pending requests
+        state.pendingRequests.delete(requesterId);
+        
+        // Revoke previous controller if any
+        if (state.currentController && state.currentController !== requesterId) {
+          const prevController = roomUsers.get(state.currentController);
+          if (prevController) {
+            const prevSocket = io.sockets.sockets.get(prevController.socketId);
+            if (prevSocket) {
+              prevSocket.emit('remote-access-revoked', {
+                reason: 'granted-to-another',
+                newControllerId: requesterId
+              });
+            }
+          }
+        }
+        
+        // Set new controller
+        state.currentController = requesterId;
+        state.hostOverride = false;
+        
+        console.log(`[Remote Access] Host granted control to ${requesterId} in room ${roomId}`);
+        
+        // Grant access to new controller
+        const newController = roomUsers.get(requesterId);
+        if (newController) {
+          const controllerSocket = io.sockets.sockets.get(newController.socketId);
+          if (controllerSocket) {
+            controllerSocket.emit('remote-access-granted', {
+              roomId,
+              grantedBy: socket.data.userId
+            });
+          }
+        }
+        
+        // Broadcast updated state
+        broadcastRemoteAccessState(roomId);
+
+      } catch (err) {
+        console.error('[Remote Access] accept error:', err);
+        socket.emit('error', { message: 'Accept failed' });
+      }
+    });
+
+    // Reject remote access (host only)
+    socket.on('remote-access-reject', ({ roomId, requesterId }) => {
+      try {
+        const roomUsers = rooms.get(roomId);
+        if (!roomUsers) {
+          return socket.emit('error', { message: 'Room not found' });
+        }
+
+        const hostUser = roomUsers.get(socket.data.userId);
+        if (!hostUser || !hostUser.isHost) {
+          return socket.emit('error', { message: 'Only hosts can reject access' });
+        }
+
+        const state = getRemoteAccessState(roomId);
+        
+        // Remove from pending requests
+        state.pendingRequests.delete(requesterId);
+        
+        // Notify requester
+        const requester = roomUsers.get(requesterId);
+        if (requester) {
+          const requesterSocket = io.sockets.sockets.get(requester.socketId);
+          if (requesterSocket) {
+            requesterSocket.emit('remote-access-rejected', {
+              roomId,
+              rejectedBy: socket.data.userId
+            });
+          }
+        }
+        
+        console.log(`[Remote Access] Host rejected access for ${requesterId} in room ${roomId}`);
+        
+        // Broadcast updated state
+        broadcastRemoteAccessState(roomId);
+
+      } catch (err) {
+        console.error('[Remote Access] reject error:', err);
+        socket.emit('error', { message: 'Reject failed' });
+      }
+    });
+
+    // Revoke remote access (host only)
+    socket.on('remote-access-revoke', ({ roomId }) => {
+      try {
+        const roomUsers = rooms.get(roomId);
+        if (!roomUsers) {
+          return socket.emit('error', { message: 'Room not found' });
+        }
+
+        const hostUser = roomUsers.get(socket.data.userId);
+        if (!hostUser || !hostUser.isHost) {
+          return socket.emit('error', { message: 'Only hosts can revoke access' });
+        }
+
+        const state = getRemoteAccessState(roomId);
+        
+        if (state.currentController) {
+          const controller = roomUsers.get(state.currentController);
+          if (controller) {
+            const controllerSocket = io.sockets.sockets.get(controller.socketId);
+            if (controllerSocket) {
+              controllerSocket.emit('remote-access-revoked', {
+                reason: 'host-revoked',
+                revokedBy: socket.data.userId
+              });
+            }
+          }
+          
+          console.log(`[Remote Access] Host revoked control from ${state.currentController} in room ${roomId}`);
+          state.currentController = null;
+          state.hostOverride = false;
+        }
+        
+        // Broadcast updated state
+        broadcastRemoteAccessState(roomId);
+
+      } catch (err) {
+        console.error('[Remote Access] revoke error:', err);
+        socket.emit('error', { message: 'Revoke failed' });
+      }
+    });
+
+    // Host override start
+    socket.on('host-override-start', ({ roomId }) => {
+      try {
+        const roomUsers = rooms.get(roomId);
+        if (!roomUsers) {
+          return socket.emit('error', { message: 'Room not found' });
+        }
+
+        const hostUser = roomUsers.get(socket.data.userId);
+        if (!hostUser || !hostUser.isHost) {
+          return socket.emit('error', { message: 'Only hosts can override' });
+        }
+
+        const state = getRemoteAccessState(roomId);
+        
+        if (state.currentController && state.currentController !== socket.data.userId) {
+          state.hostOverride = true;
+          
+          // Notify current controller
+          const controller = roomUsers.get(state.currentController);
+          if (controller) {
+            const controllerSocket = io.sockets.sockets.get(controller.socketId);
+            if (controllerSocket) {
+              controllerSocket.emit('host-override-start', {
+                hostId: socket.data.userId
+              });
+            }
+          }
+          
+          console.log(`[Remote Access] Host override started in room ${roomId}`);
+          broadcastRemoteAccessState(roomId);
+        }
+
+      } catch (err) {
+        console.error('[Remote Access] override start error:', err);
+      }
+    });
+
+    // Host override stop
+    socket.on('host-override-stop', ({ roomId }) => {
+      try {
+        const roomUsers = rooms.get(roomId);
+        if (!roomUsers) {
+          return socket.emit('error', { message: 'Room not found' });
+        }
+
+        const hostUser = roomUsers.get(socket.data.userId);
+        if (!hostUser || !hostUser.isHost) {
+          return socket.emit('error', { message: 'Only hosts can override' });
+        }
+
+        const state = getRemoteAccessState(roomId);
+        
+        if (state.hostOverride) {
+          state.hostOverride = false;
+          
+          // Notify current controller that control is restored
+          if (state.currentController) {
+            const controller = roomUsers.get(state.currentController);
+            if (controller) {
+              const controllerSocket = io.sockets.sockets.get(controller.socketId);
+              if (controllerSocket) {
+                controllerSocket.emit('host-override-stop', {
+                  hostId: socket.data.userId
+                });
+              }
+            }
+          }
+          
+          console.log(`[Remote Access] Host override stopped in room ${roomId}`);
+          broadcastRemoteAccessState(roomId);
+        }
+
+      } catch (err) {
+        console.error('[Remote Access] override stop error:', err);
+      }
+    });
+
     // Handle socket disconnection - clean up device registrations
     socket.on('disconnect', () => {
       console.log(`[DISCONNECT] Socket ${socket.id} disconnected`);
+      
+      // Clean up remote access control state
+      if (socket.data.roomId && socket.data.userId) {
+        const roomId = socket.data.roomId;
+        const userId = socket.data.userId;
+        
+        const state = getRemoteAccessState(roomId);
+        
+        // Remove from pending requests
+        if (state.pendingRequests.has(userId)) {
+          state.pendingRequests.delete(userId);
+          console.log(`[Remote Access] Removed pending request from ${userId} on disconnect`);
+          broadcastRemoteAccessState(roomId);
+        }
+        
+        // If this user was the controller, revoke control
+        if (state.currentController === userId) {
+          state.currentController = null;
+          state.hostOverride = false;
+          console.log(`[Remote Access] Controller ${userId} disconnected, control revoked`);
+          broadcastRemoteAccessState(roomId);
+        }
+      }
       
       // Clean up device registration if this socket was registered as a device
       if (socket.deviceId && deviceRegistryById.has(socket.deviceId)) {
