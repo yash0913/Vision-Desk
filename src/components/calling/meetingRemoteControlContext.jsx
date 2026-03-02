@@ -93,6 +93,8 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
   const [actionLogs, setActionLogs] = useState([]);
 
   const [activeControllerName, setActiveControllerName] = useState(null);
+  const [isHostActive, setIsHostActive] = useState(false); // Priority Override state
+  const [meetingAccessState, setMeetingAccessState] = useState({ activeController: null, pendingRequests: [] });
   const [agentStatus, setAgentStatus] = useState('unknown'); // online, offline, provisioning, unknown
   const [checkedLocal, setCheckedLocal] = useState(false);
   const statusRef = useRef(agentStatus);
@@ -507,13 +509,18 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
 
     setOnDisconnected,
 
-
+    handleIceCandidate, // Assuming this is exposed by useDeskLinkWebRTC
 
   } = useDeskLinkWebRTC();
 
-
-
-
+  const addSystemLog = useCallback((message, type = 'info') => {
+    setActionLogs(prev => [...prev, {
+      id: Date.now() + Math.random(),
+      message,
+      type,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    }].slice(-50)); // Keep last 50 logs
+  }, []);
 
 
 
@@ -735,15 +742,18 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
 
 
 
-  const sendRemoteAction = useCallback((actionType, actionDetails) => {
-    if (!socket || !activeSessionId) return;
+  const sendRemoteAction = useCallback((actionType, actionDetails = {}) => {
+    if (!sendControlMessage) return;
+    if (isHostActive) {
+      console.warn('[RemoteControl] Input blocked: Host is currently active');
+      return;
+    }
 
-    socket.emit('remote-action', {
-      sessionId: activeSessionId,
-      actionType,
-      actionDetails,
+    sendControlMessage({
+      type: actionType,
+      ...actionDetails
     });
-  }, [socket, activeSessionId]);
+  }, [sendControlMessage, isHostActive]);
 
 
 
@@ -1292,19 +1302,72 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
       }
     };
 
+    const handleSignalingEvent = (payload) => {
+      const { type, sessionId } = payload;
+      switch (type) {
+        case 'webrtc-ice':
+          if (sessionId === activeSessionId) {
+            handleIceCandidate(payload.candidate);
+          }
+          break;
+        case 'remote-control-paused':
+          if (sessionId === activeSessionId) {
+            console.warn('[RemoteControl] Host is ACTIVE - pausing control');
+            setIsHostActive(true);
+            addSystemLog('Host is currently performing local actions. Control temporarily paused.', 'warning');
+          }
+          break;
+        case 'remote-control-resumed':
+          if (sessionId === activeSessionId) {
+            console.log('[RemoteControl] Host is IDLE - resuming control');
+            setIsHostActive(false);
+            addSystemLog('Host idle. Remote control restored.', 'info');
+          }
+          break;
+        case 'meeting-access-state':
+          console.log('[MeetingRemoteControl] Received meeting-access-state:', payload);
+          setMeetingAccessState(payload.state);
+          break;
+        default:
+          console.log('[MeetingRemoteControl] Unhandled signaling event:', type, payload);
+          break;
+      }
+    };
+
     socket.on('desklink-session-start', handleSessionStartExtended);
     socket.on('desklink-session-ended', handleSessionEndedExtended);
     socket.on('host-action-log', handleHostActionLog);
     socket.on('access-revoked', handleAccessRevoked);
+
+    // Remote Control Status (Priority Override)
+    socket.on('remote-control-paused', (payload) => {
+      console.warn('[RemoteControl] Host is ACTIVE - pausing control');
+      setIsHostActive(true);
+      addSystemLog('Host is currently performing local actions. Control temporarily paused.', 'warning');
+    });
+
+    socket.on('remote-control-resumed', (payload) => {
+      console.log('[RemoteControl] Host is IDLE - resuming control');
+      setIsHostActive(false);
+      addSystemLog('Host idle. Remote control restored.', 'info');
+    });
+
+    socket.on('meeting-access-state', (payload) => {
+      console.log('[MeetingRemoteControl] Received meeting-access-state:', payload);
+      setMeetingAccessState(payload.state);
+    });
 
     return () => {
       socket.off('desklink-session-start', handleSessionStartExtended);
       socket.off('desklink-session-ended', handleSessionEndedExtended);
       socket.off('host-action-log', handleHostActionLog);
       socket.off('access-revoked', handleAccessRevoked);
+      socket.off('remote-control-paused');
+      socket.off('remote-control-resumed');
+      socket.off('meeting-access-state');
     };
 
-  }, [socket, token, startAsCaller, startAsReceiver, activeSessionId, localAuthUserId, addLog]);
+  }, [socket, token, startAsCaller, startAsReceiver, activeSessionId, localAuthUserId, addLog, addSystemLog, handleIceCandidate]);
 
 
   const value = {
@@ -1377,6 +1440,8 @@ export function MeetingRemoteControlProvider({ children, meetingId, localAuthUse
     actionLogs,
 
     activeControllerName,
+    isHostActive,
+    meetingAccessState,
     setOnDataMessage,
 
     setOnConnected,

@@ -204,6 +204,7 @@ function VideoRoomInner({
     meetingSocketReady, // Exported from context
     meetingSocket, // Exported from context
     agentStatus, // Real-time local agent status from context
+    isHostActive, // Priority Override state
   } = useMeetingRemoteControl();
 
 
@@ -1099,6 +1100,19 @@ function VideoRoomInner({
         pendingRequestCount={remoteRequests.length}
 
       />
+
+      {/* Host Activity Priority Banner */}
+      {isHostActive && (
+        <div
+          className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-top-4 duration-300"
+        >
+          <div className="flex items-center gap-3 px-6 py-3 bg-amber-600/90 backdrop-blur-md text-white rounded-full shadow-2xl border border-amber-400/50">
+            <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+            <span className="font-semibold tracking-wide uppercase text-xs">Host is active</span>
+            <span className="text-sm opacity-90">Remote control temporarily paused</span>
+          </div>
+        </div>
+      )}
 
       {/* Remote Access Requests Popover — anchored near control bar */}
       <div style={{ position: 'fixed', bottom: 90, right: 180, zIndex: 55 }}>

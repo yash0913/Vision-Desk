@@ -1215,6 +1215,29 @@ function createSocketServer(server, clientOrigin) {
 
 
 
+    // WebRTC Signaling Relay for Control Status (Pause/Resume)
+    socket.on('remote-control-paused', async ({ sessionId, fromUserId, toDeviceId, token }) => {
+      try {
+        const session = await validateSessionAccess(sessionId, fromUserId);
+        if (!session) return;
+        emitToDevice(toDeviceId, 'remote-control-paused', { sessionId, fromUserId, toDeviceId, token });
+      } catch (e) {
+        console.error('[remote-control-paused] error:', e.message);
+      }
+    });
+
+    socket.on('remote-control-resumed', async ({ sessionId, fromUserId, toDeviceId, token }) => {
+      try {
+        const session = await validateSessionAccess(sessionId, fromUserId);
+        if (!session) return;
+        emitToDevice(toDeviceId, 'remote-control-resumed', { sessionId, fromUserId, toDeviceId, token });
+      } catch (e) {
+        console.error('[remote-control-resumed] error:', e.message);
+      }
+    });
+
+
+
     // WebRTC ICE Candidate
 
     socket.on('webrtc-ice', async ({ sessionId, fromUserId, fromDeviceId, toDeviceId, candidate, token }) => {
