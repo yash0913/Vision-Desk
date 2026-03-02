@@ -1,5 +1,6 @@
 import React from 'react';
 import { useMeetingRemoteControl } from '../../../components/calling/meetingRemoteControlContext';
+import { AGENT_DOWNLOAD_URL } from '../utils/agentDownload.js';
 
 const AgentStatusBanner = () => {
     const { agentStatus, provisionAgent } = useMeetingRemoteControl();
@@ -35,7 +36,7 @@ const AgentStatusBanner = () => {
                     dotClass: 'gray',
                     bannerClass: 'disconnected',
                     btnLabel: 'Download',
-                    onClick: () => window.open('/download-agent', '_blank')
+                    onClick: () => window.open(AGENT_DOWNLOAD_URL, '_blank')
                 };
         }
     };

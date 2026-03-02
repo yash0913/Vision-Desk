@@ -142,50 +142,34 @@ function getDeviceRegistrySnapshotForUser(userId) {
 
 
 function emitToDevice(deviceId, event, payload) {
-
   if (!ioInstance || !deviceId) return;
 
   const devId = String(deviceId);
-
   const meta = deviceRegistryById.get(devId);
+  const socketSet = onlineDevicesById.get(devId);
 
-  const isDeviceOnline = !!meta && meta.isOnline === true;
+  // Robust check: we can emit if we have a socket set with at least one socket
+  const hasActiveSocket = socketSet && socketSet.size > 0;
 
-  if (!isDeviceOnline) {
+  if (!hasActiveSocket) {
+    console.warn(`[ROUTING] Cannot emit ${event} to ${devId} - no active socket found`);
 
-    console.warn(`[ROUTING] Cannot emit ${event} to ${devId} - device not online/registered`);
-
-    const hostUserId = payload && (payload.hostUserId || payload.toUserId || payload.ownerUserId || payload.userId);
-
-    if (hostUserId) {
-
-      console.warn('[ROUTING] Full registry snapshot for hostUserId:', hostUserId, getDeviceRegistrySnapshotForUser(hostUserId));
-
+    // Debug info: check metadata if it exists
+    if (!meta) {
+      console.warn(`[ROUTING] Device ${devId} unknown to registry`);
     } else {
-
-      console.warn('[ROUTING] Full device registry keys:', Array.from(deviceRegistryById.keys()));
-
+      console.warn(`[ROUTING] Device ${devId} registered as ${meta.deviceType} but marked isOnline=${meta.isOnline}`);
     }
 
+    console.warn('[ROUTING] Full device registry keys:', Array.from(deviceRegistryById.keys()));
     return;
-
   }
 
 
 
-  console.log(`[ROUTING] Emitting ${event} to ${devId} (${meta.deviceType})`);
+  console.log(`[ROUTING] Emitting ${event} to ${devId} (${meta?.deviceType || 'unknown'})`);
 
-  const set = onlineDevicesById.get(devId);
-
-  if (!set) {
-
-    console.warn(`[ROUTING] Device ${devId} meta exists but socket set missing`);
-
-    return;
-
-  }
-
-  set.forEach((socketId) => {
+  socketSet.forEach((socketId) => {
 
     const socket = ioInstance.sockets.sockets.get(socketId);
 
@@ -513,18 +497,8 @@ function createSocketServer(server, clientOrigin) {
   io.on('connection', (socket) => {
     console.log('[SOCKET] New connection:', socket.id, 'userId:', socket.userId);
 
-    socket.on('register-device', (payload) => {
-      console.log('[SOCKET] register-device payload:', payload);
-      // Ensure the socket has the userId from the payload if it wasn't authenticated via JWT
-      if (payload.userId && !socket.userId) {
-        socket.userId = String(payload.userId);
-        trackUserSocket(onlineUsersById, socket.userId, socket.id);
-        console.log('[SOCKET] Manually linked socket', socket.id, 'to userId', socket.userId);
-      }
-    });
-
+    // Base user tracking
     trackUserSocket(onlineUsersByPhone, socket.userPhone, socket.id);
-
     trackUserSocket(onlineUsersById, socket.userId, socket.id);
 
 
@@ -552,16 +526,14 @@ function createSocketServer(server, clientOrigin) {
 
         const userId = socket.userId ? String(socket.userId) : null;
 
-        // ONLY native agents get a formal registry entry for status tracking
-        if (effectiveType === 'native-agent') {
-          deviceRegistryById.set(devId, {
-            userId: userId || 'unknown',
-            deviceType: effectiveType,
-            socketId: socket.id,
-            lastSeen: Date.now(),
-            isOnline: true,
-          });
-        }
+        // Add to registry for routing (all device types)
+        deviceRegistryById.set(devId, {
+          userId: userId || 'unknown',
+          deviceType: effectiveType || 'native-agent',
+          socketId: socket.id,
+          lastSeen: Date.now(),
+          isOnline: true,
+        });
 
         console.log(`[DEVICE REGISTER] devId=${devId}, userId=${userId}, effectiveType=${effectiveType}`);
 
@@ -667,6 +639,8 @@ function createSocketServer(server, clientOrigin) {
     const staleTimer = setInterval(() => {
       const now = Date.now();
       for (const [devId, meta] of deviceRegistryById.entries()) {
+        if (meta.deviceType !== 'native-agent') continue; // Web clients don't heartbeat
+
         if (meta.isOnline && (now - meta.lastSeen > HEARTBEAT_TIMEOUT)) {
           console.log(`[AGENT STALE] Marking agent ${devId} as offline (no heartbeat)`);
           meta.isOnline = false;

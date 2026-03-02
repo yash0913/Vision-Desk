@@ -200,6 +200,7 @@ function VideoRoomInner({
     checkUserAgentStatus, // Exported from context
     meetingSocketReady, // Exported from context
     meetingSocket, // Exported from context
+    agentStatus, // Real-time local agent status from context
   } = useMeetingRemoteControl();
 
 
@@ -430,8 +431,6 @@ function VideoRoomInner({
 
       if (!controllerCandidates || controllerCandidates.length === 0) return;
 
-
-
       const newStatuses = {};
 
       await Promise.all(
@@ -447,21 +446,17 @@ function VideoRoomInner({
         })
       );
 
-
-
       if (active) setAgentStatuses((prev) => ({ ...prev, ...newStatuses }));
 
     };
 
-
-
     fetchStatuses();
 
-    const interval = setInterval(fetchStatuses, 30000); // 30s poll
+    const interval = setInterval(fetchStatuses, 10000); // 10s poll
 
     return () => { active = false; clearInterval(interval); };
 
-  }, [controllerCandidates, checkUserAgentStatus]);
+  }, [controllerCandidates, checkUserAgentStatus, agentStatus]);
 
 
 
