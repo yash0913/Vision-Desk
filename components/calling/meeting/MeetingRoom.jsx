@@ -14,9 +14,6 @@ import MeetingTile from './MeetingTile.jsx';
 import { WebRTCManager } from '../calling.webrtc.js';
 import { callingApi } from '../calling.api.js';
 
-/**
- * MeetingRoom - Main meeting interface with grid layout for unlimited participants
- */
 export default function MeetingRoom({
   meetingId,
   userName,
@@ -35,13 +32,11 @@ export default function MeetingRoom({
   const [activeSpeakerId, setActiveSpeakerId] = useState(null);
   const [meetingIdCopied, setMeetingIdCopied] = useState(false);
 
-  // Initialize WebRTC if not provided
   useEffect(() => {
     if (!webrtcManager) {
       const manager = new WebRTCManager();
       setWebrtcManager(manager);
 
-      // Initialize local stream
       manager
         .initializeLocalStream({
           audio: initialAudioEnabled,
@@ -49,7 +44,6 @@ export default function MeetingRoom({
         })
         .then((stream) => {
           setLocalStream(stream);
-          // Add local participant
           setParticipants([
             {
               id: 'local',
@@ -65,7 +59,6 @@ export default function MeetingRoom({
           console.error('Error initializing local stream:', error);
         });
     } else {
-      // Use provided manager and stream
       setLocalStream(externalStream);
       setParticipants([
         {
@@ -80,7 +73,6 @@ export default function MeetingRoom({
     }
   }, []);
 
-  // Set up WebRTC event handlers
   useEffect(() => {
     if (!webrtcManager) return;
 
@@ -112,10 +104,8 @@ export default function MeetingRoom({
       }
     };
 
-    // Mock: Simulate active speaker detection
     const activeSpeakerInterval = setInterval(() => {
       if (participants.length > 1) {
-        // Randomly select an active speaker for demo
         const randomParticipant =
           participants[Math.floor(Math.random() * participants.length)];
         if (randomParticipant && !randomParticipant.isLocal) {
@@ -162,12 +152,10 @@ export default function MeetingRoom({
       if (isScreenSharing) {
         await webrtcManager.stopScreenShare();
         setIsScreenSharing(false);
-        // Remove screen share tile
         setParticipants((prev) => prev.filter((p) => p.id !== 'screenshare'));
       } else {
         const screenStream = await webrtcManager.startScreenShare();
         setIsScreenSharing(true);
-        // Add or update screen share as a special participant tile
         setParticipants((prev) => {
           const existing = prev.find((p) => p.id === 'screenshare');
           if (existing) {
@@ -209,39 +197,37 @@ export default function MeetingRoom({
     setTimeout(() => setMeetingIdCopied(false), 2000);
   }, [meetingId]);
 
-  // Calculate grid layout based on participant count
-  const getGridCols = (count) => {
-    if (count === 1) return 'grid-cols-1';
-    if (count === 2) return 'grid-cols-2';
-    if (count <= 4) return 'grid-cols-2';
-    if (count <= 9) return 'grid-cols-3';
-    if (count <= 16) return 'grid-cols-4';
-    return 'grid-cols-5';
-  };
-
   return (
-    <div className="flex h-screen w-screen flex-col bg-[#0B1120] text-slate-50">
+    <div className="flex h-screen w-screen flex-col bg-[#0B1120] text-slate-50 overflow-hidden">
+      
       {/* Top bar */}
-      <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900/50 px-6 py-3">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900/50 px-3 sm:px-6 py-2 sm:py-3 shrink-0">
+        <div className="flex items-center gap-3 sm:gap-4">
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-red-500"></div>
-            <span className="text-sm font-medium text-slate-300">Meeting</span>
+            <span className="text-xs sm:text-sm font-medium text-slate-300">
+              Meeting
+            </span>
           </div>
-          <div className="h-4 w-px bg-slate-700"></div>
+
+          <div className="hidden sm:block h-4 w-px bg-slate-700"></div>
+
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-slate-400" />
-            <span className="text-sm text-slate-400">{participants.length}</span>
+            <span className="text-xs sm:text-sm text-slate-400">
+              {participants.length}
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-1.5">
-            <span className="text-xs font-mono text-slate-300">{meetingId}</span>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 rounded-lg bg-slate-800 px-2 sm:px-3 py-1">
+            <span className="text-[10px] sm:text-xs font-mono text-slate-300 truncate max-w-[90px] sm:max-w-none">
+              {meetingId}
+            </span>
             <button
               onClick={copyMeetingId}
               className="flex h-5 w-5 items-center justify-center rounded text-slate-400 hover:text-slate-200 transition-colors"
-              title="Copy meeting ID"
             >
               {meetingIdCopied ? (
                 <Check className="h-3.5 w-3.5 text-green-400" />
@@ -254,10 +240,8 @@ export default function MeetingRoom({
       </div>
 
       {/* Video grid */}
-      <div className="flex-1 overflow-auto p-4">
-        <div
-          className={`grid ${getGridCols(participants.length)} gap-4 h-full auto-rows-fr`}
-        >
+      <div className="flex-1 min-h-0 overflow-auto p-2 sm:p-4">
+        <div className="grid gap-3 sm:gap-4 h-full auto-rows-fr grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {participants.map((participant) => (
             <MeetingTile
               key={participant.id}
@@ -276,67 +260,62 @@ export default function MeetingRoom({
       </div>
 
       {/* Bottom control bar */}
-      <div className="border-t border-slate-800 bg-slate-900/80 backdrop-blur-sm px-6 py-4">
-        <div className="flex items-center justify-center gap-3">
-          {/* Mute/Unmute */}
+      <div className="sticky bottom-0 z-20 shrink-0 border-t border-slate-800 bg-slate-900/90 backdrop-blur-sm px-3 sm:px-6 py-3 sm:py-4">
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+          
           <button
             onClick={toggleAudio}
-            className={`flex h-12 w-12 items-center justify-center rounded-full transition-all ${
+            className={`flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full transition-all ${
               isAudioEnabled
                 ? 'bg-slate-700 text-white hover:bg-slate-600'
                 : 'bg-red-600 text-white hover:bg-red-500'
             }`}
-            title={isAudioEnabled ? 'Mute' : 'Unmute'}
           >
             {isAudioEnabled ? (
-              <Mic className="h-6 w-6" />
+              <Mic className="h-5 w-5 sm:h-6 sm:w-6" />
             ) : (
-              <MicOff className="h-6 w-6" />
+              <MicOff className="h-5 w-5 sm:h-6 sm:w-6" />
             )}
           </button>
 
-          {/* Video On/Off */}
           <button
             onClick={toggleVideo}
-            className={`flex h-12 w-12 items-center justify-center rounded-full transition-all ${
+            className={`flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full transition-all ${
               isVideoEnabled
                 ? 'bg-slate-700 text-white hover:bg-slate-600'
                 : 'bg-red-600 text-white hover:bg-red-500'
             }`}
-            title={isVideoEnabled ? 'Turn off video' : 'Turn on video'}
           >
             {isVideoEnabled ? (
-              <Video className="h-6 w-6" />
+              <Video className="h-5 w-5 sm:h-6 sm:w-6" />
             ) : (
-              <VideoOff className="h-6 w-6" />
+              <VideoOff className="h-5 w-5 sm:h-6 sm:w-6" />
             )}
           </button>
 
-          {/* Screen Share */}
           <button
             onClick={handleScreenShare}
-            className={`flex h-12 w-12 items-center justify-center rounded-full transition-all ${
+            className={`flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full transition-all ${
               isScreenSharing
                 ? 'bg-blue-600 text-white hover:bg-blue-500'
                 : 'bg-slate-700 text-white hover:bg-slate-600'
             }`}
-            title={isScreenSharing ? 'Stop sharing' : 'Share screen'}
           >
-            <Monitor className="h-6 w-6" />
+            <Monitor className="h-5 w-5 sm:h-6 sm:w-6" />
           </button>
 
-          {/* Leave Meeting */}
           <button
             onClick={handleLeave}
-            className="ml-4 flex h-12 items-center gap-2 rounded-full bg-red-600 px-6 text-white transition-colors hover:bg-red-500"
-            title="Leave meeting"
+            className="flex h-10 sm:h-12 items-center gap-2 rounded-full bg-red-600 px-4 sm:px-6 text-white transition-colors hover:bg-red-500"
           >
-            <PhoneOff className="h-5 w-5" />
-            <span className="font-medium">Leave</span>
+            <PhoneOff className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="text-sm sm:text-base font-medium">
+              Leave
+            </span>
           </button>
+
         </div>
       </div>
     </div>
   );
 }
-

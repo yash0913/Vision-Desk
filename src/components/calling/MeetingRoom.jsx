@@ -140,9 +140,9 @@ export default function MeetingRoom({
   const totalParticipants = allParticipants.length;
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-[#0F172A] text-white overflow-hidden">
+    <div className="flex flex-col h-screen w-screen bg-[#0F172A] text-white overflow-hidden">
       {/* Video Grid */}
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 min-h-0 overflow-auto p-4">
         <div className={`grid ${getGridCols(totalParticipants)} gap-4 h-full`}>
           {allParticipants.map((participant) => {
             // Create ref if it doesn't exist
@@ -200,10 +200,10 @@ export default function MeetingRoom({
       </div>
 
       {/* Bottom Toolbar - Simplified for Remote Desktop */}
-      <div className="border-t border-slate-800 bg-[#1E293B] px-6 py-4">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
+      <div className="shrink-0 border-t border-slate-800 bg-[#1E293B] px-4 py-3 sm:px-6 sm:py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 max-w-7xl mx-auto">
           {/* Left side - Connection info */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 text-xs sm:text-sm">
             <div className="text-sm text-slate-400">
               Connection: <span className="font-mono text-white">{connectionState}</span>
             </div>
@@ -217,7 +217,7 @@ export default function MeetingRoom({
             {/* Leave button */}
             <button
               onClick={handleLeave}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-xs sm:text-sm"
             >
               <PhoneOff className="h-4 w-4" />
               <span>End Session</span>
@@ -225,7 +225,7 @@ export default function MeetingRoom({
           </div>
 
           {/* Right side - Stats */}
-          <div className="flex items-center gap-4 text-sm text-slate-400">
+          <div className="flex items-center gap-3 text-xs sm:text-sm text-slate-400">
             <div>Bitrate: {Math.round(stats.bitrate)} kbps</div>
             <div>RTT: {stats.rtt} ms</div>
             <div>FPS: {stats.fps}</div>

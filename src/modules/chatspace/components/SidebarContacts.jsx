@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import SidebarShell from './SidebarShell.jsx';
 import { useAuth } from '../../auth/hooks/useAuth.js';
 import { contactsApi } from '../services/contacts.api.js';
 import AddContactModal from './AddContactModal.jsx';
@@ -53,9 +52,7 @@ export default function SidebarContacts({ activePhone, onSelectContact, refreshK
   };
 
   return (
-    <>
-      <SidebarShell />
-      <section className="w-72 border-r border-slate-800 bg-slate-900/80 flex flex-col">
+    <section className="w-full md:w-72 border-r border-slate-800 bg-slate-900/80 flex flex-col">
         <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
           <div className="text-sm font-medium text-slate-100">Contacts</div>
           <button
@@ -113,12 +110,11 @@ export default function SidebarContacts({ activePhone, onSelectContact, refreshK
               </button>
             );
           })}
-        </div>
-      </section>
+      </div>
 
       {showAdd && (
         <AddContactModal onClose={() => setShowAdd(false)} onAdded={handleAdded} />
       )}
-    </>
+    </section>
   );
 }

@@ -1,61 +1,27 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-import { FaArrowLeft, FaShieldAlt, FaRegBell, FaUserEdit, FaCamera, FaSave, FaTimes } from "react-icons/fa";
-
+import { FaShieldAlt, FaRegBell, FaUserEdit, FaCamera, FaSave, FaTimes } from "react-icons/fa";
 import { IoMdRocket } from "react-icons/io";
-
 import { CiSettings } from "react-icons/ci";
-
 import { IoIosLogOut } from "react-icons/io";
-
-
-
-// IMPORTANT: This import path must correctly point to your SidebarShell
-
 import SidebarShell from '../../chatspace/components/SidebarShell.jsx';
-
-
 
 export default function Settings() {
     const navigate = useNavigate();
     const fileInputRef = useRef(null);
-
     const [isEditing, setIsEditing] = useState(false);
-
     const [user, setUser] = useState({
         name: "VisionDesk User",
         email: "user@visiondesk.app",
         avatar: null
     });
 
-    // Load user data on mount with error handling to prevent blank page
     useEffect(() => {
         try {
             const savedUser = localStorage.getItem('vd_user_profile');
-            if (savedUser) {
-                const parsedUser = JSON.parse(savedUser);
-                // Only update if the parsed data actually exists
-                if (parsedUser) {
-                    setUser(parsedUser);
-                }
-            }
-        } catch (error) {
-            console.error("Failed to load user profile from storage:", error);
-            // If it fails, we just keep the default state instead of crashing
-        }
+            if (savedUser) setUser(JSON.parse(savedUser));
+        } catch (error) { console.error(error); }
     }, []);
-
-    const handleImageChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setUser(prev => ({ ...prev, avatar: reader.result }));
-            };
-            reader.readAsDataURL(file);
-        }
-    };
 
     const handleSave = () => {
         setIsEditing(false);
@@ -63,271 +29,100 @@ export default function Settings() {
     };
 
     return (
-
-        /* This Flex container is what keeps the sidebar at the side */
-
-        <div className="flex min-h-screen bg-slate-950 text-slate-50">
-
-
-
-            {/* 1. The Constant Sidebar */}
-
+        <div className="flex h-screen bg-[#020617] text-slate-50 overflow-hidden">
             <SidebarShell />
 
-
-
-            {/* 2. The Main Content Area */}
-
-            <main className="flex-1 overflow-y-auto p-8 lg:p-12">
-
-
-
-
-
-                <div className="max-w-5xl mx-auto">
-
-                    {/* --- FUNCTIONAL PROFILE SECTION --- */}
-
-                    <section className="mb-10">
-
-                        <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-5">Account Profile</h2>
-
-                        <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 flex flex-col md:flex-row items-center gap-6 shadow-xl shadow-black/20">
-
-
-
-                            {/* Avatar with Upload Logic */}
-
-                            <div className="relative group">
-
-                                <div className="w-24 h-24 rounded-2xl bg-indigo-600 overflow-hidden flex items-center justify-center text-2xl font-bold shadow-xl shadow-indigo-600/20 border-2 border-slate-800">
-
-                                    {user.avatar ? (
-
-                                        <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
-
-                                    ) : (
-
-                                        "VD"
-
-                                    )}
-
-                                </div>
-
-                                <input
-
-                                    type="file"
-
-                                    ref={fileInputRef}
-
-                                    className="hidden"
-
-                                    accept="image/*"
-
-                                    onChange={handleImageChange}
-
-                                />
-
-                                <button
-
-                                    onClick={() => fileInputRef.current.click()}
-
-                                    className="absolute -bottom-2 -right-2 p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-indigo-400 hover:text-white hover:bg-indigo-600 transition-all shadow-lg"
-
-                                    title="Upload Photo"
-
-                                >
-
-                                    <FaCamera size={14} />
-
-                                </button>
-
-                            </div>
-
-
-
-                            <div className="flex-1 text-center md:text-left">
-
-                                {isEditing ? (
-
-                                    <div className="space-y-3">
-
-                                        <input
-
-                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-indigo-500 font-medium"
-
-                                            value={user.name}
-
-                                            onChange={(e) => setUser({ ...user, name: e.target.value })}
-
-                                            placeholder="Full Name"
-
-                                        />
-
-                                        <input
-
-                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-indigo-500 font-medium"
-
-                                            value={user.email}
-
-                                            onChange={(e) => setUser({ ...user, email: e.target.value })}
-
-                                            placeholder="Email Address"
-
-                                        />
-
-                                        <div className="flex gap-2 justify-center md:justify-start">
-
-                                            <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-600/20">
-
-                                                <FaSave /> Save Changes
-
-                                            </button>
-
-                                            <button onClick={() => setIsEditing(false)} className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-600 transition-all">
-
-                                                <FaTimes /> Cancel
-
-                                            </button>
-
-                                        </div>
-
-                                    </div>
-
-                                ) : (
-
-                                    <>
-
-                                        <h3 className="text-2xl font-bold text-white mb-1">{user.name}</h3>
-
-                                        <p className="text-sm text-slate-500 mb-4 font-medium">{user.email}</p>
-
-                                        <button
-
-                                            onClick={() => setIsEditing(true)}
-
-                                            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600/10 text-indigo-400 border border-indigo-600/20 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all shadow-md"
-
-                                        >
-
-                                            <FaUserEdit size={14} /> Edit Profile
-
-                                        </button>
-
-                                    </>
-
-                                )}
-
-                            </div>
-
+            <main className="flex-1 overflow-y-auto p-6 md:p-12 custom-scrollbar">
+                <div className="max-w-4xl mx-auto space-y-10">
+                    
+                    {/* Header */}
+                    <div className="flex items-center gap-4 mb-2">
+                        <div className="p-3 bg-indigo-500/10 rounded-2xl border border-indigo-500/20">
+                            <CiSettings className="text-3xl text-indigo-400" />
                         </div>
+                        <div>
+                            <h1 className="text-3xl font-bold tracking-tight">System Settings</h1>
+                            <p className="text-slate-500 text-sm font-medium">Manage your account and workspace preferences.</p>
+                        </div>
+                    </div>
 
+                    {/* --- PROFILE SECTION --- */}
+                    <section>
+                        <div className="group relative bg-slate-900/40 backdrop-blur-md border border-slate-800 border-t-white/10 rounded-[32px] p-8 flex flex-col md:flex-row items-center gap-8 shadow-2xl">
+                            <div className="relative">
+                                <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-indigo-600 to-blue-700 overflow-hidden flex items-center justify-center text-3xl font-bold shadow-2xl border-2 border-slate-800 ring-4 ring-indigo-500/10">
+                                    {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : "VD"}
+                                </div>
+                                <button 
+                                    onClick={() => fileInputRef.current.click()}
+                                    className="absolute -bottom-2 -right-2 p-3 bg-[#0f172a] border border-slate-700 rounded-2xl text-indigo-400 hover:bg-indigo-600 hover:text-white transition-all shadow-xl active:scale-90"
+                                >
+                                    <FaCamera size={16} />
+                                </button>
+                                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={(e) => {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => setUser(prev => ({ ...prev, avatar: reader.result }));
+                                    reader.readAsDataURL(e.target.files[0]);
+                                }} />
+                            </div>
+
+                            <div className="flex-1 text-center md:text-left space-y-4">
+                                {isEditing ? (
+                                    <div className="grid gap-3">
+                                        <input className="bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={user.name} onChange={(e)=>setUser({...user, name: e.target.value})} />
+                                        <input className="bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-indigo-500 outline-none" value={user.email} onChange={(e)=>setUser({...user, email: e.target.value})} />
+                                        <div className="flex gap-2 pt-2">
+                                            <button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2"><FaSave/> Save</button>
+                                            <button onClick={() => setIsEditing(false)} className="bg-slate-800 text-slate-300 px-5 py-2 rounded-xl text-xs font-bold hover:bg-slate-700 transition-all">Cancel</button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div>
+                                            <h3 className="text-3xl font-extrabold text-white leading-none">{user.name}</h3>
+                                            <p className="text-slate-500 mt-2 font-medium tracking-wide">{user.email}</p>
+                                        </div>
+                                        <button onClick={() => setIsEditing(true)} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/20 flex items-center gap-2">
+                                            <FaUserEdit size={14} /> Edit Profile
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
                     </section>
 
-
-
-                    {/* --- APP PREFERENCES --- */}
-
-                    <div className="flex items-center gap-3 mb-6">
-
-                        <CiSettings className="text-2xl text-indigo-400" />
-
-                        <h2 className="text-xl font-bold">App Preferences</h2>
-
-                    </div>
-
-
-
-                    <div className="space-y-4">
-
-                        <section className="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
-
-                            <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
-
-                                <div className="flex items-center gap-3">
-
-                                    <div className="p-2 bg-slate-800 rounded-lg text-indigo-400">
-
-                                        <IoMdRocket size={18} />
-
+                    {/* --- PREFERENCES SECTION --- */}
+                    <div className="grid gap-6">
+                        <section className="bg-slate-900/40 border border-slate-800 rounded-[24px] overflow-hidden divide-y divide-slate-800/50 shadow-xl">
+                            {[
+                                { icon: <IoMdRocket/>, title: "System Startup", desc: "Launch VisionDesk automatically", checked: false },
+                                { icon: <FaRegBell/>, title: "Desktop Notifications", desc: "Show alerts for new messages", checked: true }
+                            ].map((item, idx) => (
+                                <div key={idx} className="px-6 py-5 flex items-center justify-between hover:bg-white/5 transition-colors">
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-indigo-400">{item.icon}</div>
+                                        <div>
+                                            <p className="font-bold text-sm text-slate-100">{item.title}</p>
+                                            <p className="text-xs text-slate-500 font-medium">{item.desc}</p>
+                                        </div>
                                     </div>
-
-                                    <div>
-
-                                        <p className="font-semibold text-sm text-slate-200">System Startup</p>
-
-                                        <p className="text-xs text-slate-500">Launch VisionDesk on system startup</p>
-
-                                    </div>
-
+                                    <input type="checkbox" defaultChecked={item.checked} className="w-5 h-5 accent-indigo-500 cursor-pointer" />
                                 </div>
-
-                                <input type="checkbox" className="w-4 h-4 accent-indigo-500 cursor-pointer" />
-
-                            </div>
-
-
-
-                            <div className="px-6 py-5 flex items-center justify-between">
-
-                                <div className="flex items-center gap-3">
-
-                                    <div className="p-2 bg-slate-800 rounded-lg text-indigo-400">
-
-                                        <FaRegBell size={18} />
-
-                                    </div>
-
-                                    <div>
-
-                                        <p className="font-semibold text-sm text-slate-200">Notifications</p>
-
-                                        <p className="text-xs text-slate-500">Enable desktop notifications</p>
-
-                                    </div>
-
-                                </div>
-
-                                <input type="checkbox" defaultChecked className="w-4 h-4 accent-indigo-500 cursor-pointer" />
-
-                            </div>
-
+                            ))}
                         </section>
 
-
-
-                        <section className="bg-red-500/5 border border-red-500/20 rounded-2xl p-6 flex items-center justify-between shadow-lg shadow-red-900/5">
-
+                        <section className="bg-red-500/5 border border-red-500/20 rounded-[24px] p-6 flex items-center justify-between group hover:bg-red-500/10 transition-all">
                             <div>
-
-                                <p className="font-bold text-red-400 text-sm mb-0.5">Session Security</p>
-
-                                <p className="text-xs text-slate-500">Log out of your current session</p>
-
+                                <p className="font-bold text-red-400 text-sm">Security & Access</p>
+                                <p className="text-xs text-slate-500 font-medium">Terminate your current session on this device.</p>
                             </div>
-
-                            <button
-
-                                onClick={() => navigate('/login')}
-
-                                className="flex items-center gap-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-5 py-2.5 border border-red-500/20 rounded-xl text-xs font-bold transition-all shadow-lg shadow-red-500/10"
-
-                            >
-
+                            <button onClick={() => navigate('/login')} className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg shadow-red-600/20 active:scale-95">
                                 <IoIosLogOut size={16} /> Logout
-
                             </button>
-
                         </section>
-
                     </div>
-
                 </div>
-
             </main>
-
         </div>
-
     );
-
 }

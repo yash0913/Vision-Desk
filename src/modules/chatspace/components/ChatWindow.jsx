@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from 'react';
+import { HiArrowLeft } from 'react-icons/hi';
 import MessageBubble from './MessageBubble.jsx';
 import InputBar from './InputBar.jsx';
 
-export default function ChatWindow({ activeContact, messages, onSend, currentUser }) {
+export default function ChatWindow({ activeContact, messages, onSend, currentUser, onBack }) {
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -27,6 +28,15 @@ export default function ChatWindow({ activeContact, messages, onSend, currentUse
     <section className="flex-1 flex flex-col bg-slate-950/80">
       <header className="h-16 px-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
         <div className="flex items-center gap-3">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="mr-2 md:hidden w-8 h-8 rounded-full flex items-center justify-center text-slate-300 hover:bg-slate-800"
+            >
+              <HiArrowLeft className="w-4 h-4" />
+            </button>
+          )}
           <div
             className="w-9 h-9 rounded-2xl flex items-center justify-center text-xs font-semibold text-white bg-slate-700"
           >
@@ -47,7 +57,7 @@ export default function ChatWindow({ activeContact, messages, onSend, currentUse
         </div>
       </header>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-0.5">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-0.5">
         {messages.map((msg) => {
           const isMe = msg.senderPhone === mePhone;
           return <MessageBubble key={msg.id || msg._id || msg.timestamp} message={msg} isMe={isMe} />;

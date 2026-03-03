@@ -12,7 +12,6 @@ import DeskLinkSidebarEntry from '../../desklink/components/DeskLinkSidebarEntry
 
 const navItems = [
   { id: 'messages', label: 'Messages', icon: <FaRegMessage />, path: '/workspace/messages' },
-  { id: 'contacts', label: 'Contacts', icon: <IoMdContacts />, path: '/workspace/messages?view=contacts' },
   { id: 'starred', label: 'Starred', icon: <FaRegStar />, path: '/workspace/starred' },
   { id: 'settings', label: 'Settings', icon: <CiSettings />, path: '/workspace/settings' },
   { id: 'meet', label: 'Meet', icon: <SiGooglemeet />, path: '/workspace/meet' },

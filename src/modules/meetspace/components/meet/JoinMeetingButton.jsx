@@ -6,12 +6,22 @@ export default function JoinMeetingButton({ onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-sky-500 via-blue-500 to-indigo-500 px-10 py-8 shadow-[0_0_30px_rgba(56,189,248,0.45)] transition-transform transition-shadow hover:scale-[1.03] hover:shadow-[0_0_40px_rgba(56,189,248,0.7)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+      className="group relative flex h-44 w-44 flex-col items-center justify-center gap-3 overflow-hidden rounded-[2rem] 
+                 bg-gradient-to-br from-sky-400 via-blue-600 to-indigo-700 
+                 p-1 transition-all duration-300 hover:scale-[1.05] active:scale-95
+                 border-t border-white/30 shadow-[0_20px_40px_-15px_rgba(37,99,235,0.6),inset_0_1px_1px_rgba(255,255,255,0.3)]"
     >
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950/20 backdrop-blur">
-        <Plus className="h-8 w-8 text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.45)]" />
+      {/* Glossy Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+      
+      <div className="relative z-10 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-inner">
+        <Plus className="h-9 w-9 text-white filter drop-shadow-lg group-hover:rotate-90 transition-transform duration-500" />
       </div>
-      <span className="text-sm font-medium text-slate-50">Join</span>
+      
+      <div className="relative z-10 text-center">
+        <span className="block text-lg font-bold tracking-tight text-white">Join</span>
+        <span className="text-[10px] uppercase tracking-[0.2em] text-sky-100/60 font-medium">with code</span>
+      </div>
     </button>
   );
 }

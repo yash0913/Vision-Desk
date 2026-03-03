@@ -15,15 +15,15 @@ export default function ControlsBar({
 }) {
 
   // Helper for button styles to keep code clean
-  const btnBase = "flex items-center justify-center w-11 h-11 rounded-2xl transition-all duration-200 active:scale-90 shadow-lg";
+  const btnBase = "flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 lg:w-11 lg:h-11 rounded-2xl transition-all duration-200 active:scale-90 shadow-lg flex-shrink-0";
   const btnSecondary = "bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/50 backdrop-blur-md";
 
   return (
-    <div className="fixed bottom-6 left-0 right-0 z-50 px-6">
-      <div className="max-w-6xl mx-auto bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 rounded-[28px] p-3 shadow-2xl flex items-center justify-between">
+    <div className="fixed bottom-6 left-0 right-0 z-50 px-2 sm:px-4 lg:px-6">
+      <div className="max-w-6xl mx-auto bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 rounded-[28px] p-3 shadow-2xl flex items-center justify-between gap-3 overflow-x-auto flex-nowrap">
 
         {/* Left Section: Meeting Status */}
-        <div className="hidden md:flex items-center gap-3 pl-4">
+        <div className="hidden lg:flex items-center gap-3 pl-4 flex-shrink-0">
           <div className="flex flex-col">
             <span className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Meeting ID</span>
             <span className="text-sm font-mono text-indigo-400 font-semibold">{roomId}</span>
@@ -36,7 +36,7 @@ export default function ControlsBar({
         </div>
 
         {/* Center Section: Core Controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-max flex-shrink-0">
           {/* Audio */}
           <button
             onClick={onToggleAudio}
@@ -105,16 +105,16 @@ export default function ControlsBar({
         </div>
 
         {/* Right Section: Exit */}
-        <div className="pr-2">
+        <div className="pr-1 sm:pr-2 flex-shrink-0">
           <button
             onClick={isHost && onEndMeeting ? onEndMeeting : onLeave}
-            className="group flex items-center gap-3 bg-red-500/10 hover:bg-red-600 border border-red-500/20 px-5 py-2.5 rounded-2xl transition-all duration-300"
+            className="group flex items-center gap-2 sm:gap-3 bg-red-500/10 hover:bg-red-600 border border-red-500/20 px-3 py-2 sm:px-5 sm:py-2.5 rounded-2xl transition-all duration-300 flex-shrink-0"
           >
-            <span className="text-sm font-bold text-red-500 group-hover:text-white transition-colors">
+            <span className="hidden lg:inline text-sm font-bold text-red-500 group-hover:text-white transition-colors">
               {isHost ? 'End Meeting' : 'Leave'}
             </span>
-            <div className="p-1.5 bg-red-500 rounded-lg text-white">
-              <PhoneOff size={16} />
+            <div className="p-1.5 bg-red-500 rounded-lg text-white flex items-center justify-center">
+              <PhoneOff size={16} className="h-4 w-4" />
             </div>
           </button>
         </div>

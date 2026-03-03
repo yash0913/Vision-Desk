@@ -6,12 +6,22 @@ export default function NewMeetingButton({ onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 px-10 py-8 shadow-[0_0_30px_rgba(248,153,60,0.45)] transition-transform transition-shadow hover:scale-[1.03] hover:shadow-[0_0_40px_rgba(248,153,60,0.7)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+      className="group relative flex h-44 w-44 flex-col items-center justify-center gap-3 overflow-hidden rounded-[2rem] 
+                 bg-gradient-to-br from-orange-400 via-orange-600 to-rose-700 
+                 p-1 transition-all duration-300 hover:scale-[1.05] active:scale-95
+                 border-t border-white/30 shadow-[0_20px_40px_-15px_rgba(234,88,12,0.6),inset_0_1px_1px_rgba(255,255,255,0.3)]"
     >
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950/20 backdrop-blur">
-        <Video className="h-8 w-8 text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.45)]" />
+      {/* Glossy Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+
+      <div className="relative z-10 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-inner">
+        <Video className="h-9 w-9 text-white filter drop-shadow-lg group-hover:scale-110 transition-transform duration-300" />
       </div>
-      <span className="text-sm font-medium text-slate-50">New meeting</span>
+
+      <div className="relative z-10 text-center">
+        <span className="block text-lg font-bold tracking-tight text-white leading-tight">New meeting</span>
+        <span className="text-[10px] uppercase tracking-[0.2em] text-orange-100/60 font-medium">instant room</span>
+      </div>
     </button>
   );
 }
