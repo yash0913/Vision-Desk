@@ -8,7 +8,10 @@
     "dev": "vite",
     "electron": "electron .",
     "electron-dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && cross-env ELECTRON_START_URL=http://localhost:5173 electron .\"",
+    "prebuild": "node scripts/download-agent.js",
     "build": "vite build",
+    "dist": "npm run prebuild && vite build && electron-builder",
+    "dist-simple": "npm run prebuild && vite build && electron-builder --win portable",
     "preview": "vite preview"
   },
   "keywords": [],
@@ -38,14 +41,39 @@
   }
   ,
 "build": {
-  "appId": "com.visiondesk.app",
+  "appId": "com.desklink.app",
+  "productName": "DeskLink",
   "files": [
     "dist/**/*",
     "main.js",
     "package.json"
   ],
+  "extraResources": [
+    {
+      "from": "build-resources/agent/DeskLinkAgent.exe",
+      "to": "agent/DeskLinkAgent.exe"
+    }
+  ],
   "win": {
-    "target": "nsis"
-  }
+    "target": {
+      "target": "nsis",
+      "arch": ["x64"]
+    }
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "allowElevation": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "DeskLink",
+    "include": "scripts/installer.nsh",
+    "perMachine": false,
+    "deleteAppDataOnUninstall": false,
+    "runAfterFinish": false,
+    "menuCategory": "DeskLink",
+    "license": "LICENSE.txt"
+  },
+  "publish": null
 }
 }

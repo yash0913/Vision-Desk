@@ -1,0 +1,19 @@
+DeskLink License Agreement
+
+Copyright (c) 2026 DeskLink
+
+This software is provided "as-is" without any warranties of any kind, either express or implied.
+
+Permission is granted to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software.
+2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+3. This notice may not be removed or altered from any source distribution.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+DeskLink Agent
+The included DeskLink Agent is a separate component that provides remote desktop functionality. By installing DeskLink, you agree to the terms of service for the agent component.
+
+Privacy Policy:
+DeskLink does not collect personal information. The agent component may establish network connections for remote desktop functionality, but no data is transmitted to third parties without explicit user consent.

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeskLink Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1e293b;
+            color: #f1f5f9;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .container {
+            text-align: center;
+            max-width: 600px;
+        }
+        .status {
+            background: #334155;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .success { border-left: 4px solid #10b981; }
+        .info { border-left: 4px solid #3b82f6; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover { background: #2563eb; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 DeskLink Desktop App</h1>
+        
+        <div class="status success">
+            <h3>✅ Electron App Loaded Successfully</h3>
+            <p>The unified installer is working correctly!</p>
+        </div>
+        
+        <div class="status info">
+            <h3>🤖 Agent Status</h3>
+            <p>Agent should be starting in background...</p>
+            <p>Check system tray for agent controls</p>
+        </div>
+        
+        <button onclick="window.electronAPI?.openLogs()">View Agent Logs</button>
+        <button onclick="window.electronAPI?.restartAgent()">Restart Agent</button>
+        <button onclick="window.electronAPI?.stopAgent()">Stop Agent</button>
+        
+        <div class="status info">
+            <h3>📋 Build Information</h3>
+            <p>Version: 1.0.0</p>
+            <p>Platform: Windows</p>
+            <p>Agent: Embedded (190MB)</p>
+        </div>
+    </div>
+    
+    <script>
+        console.log('DeskLink app loaded successfully');
+        
+        // Test if we're in Electron
+        if (typeof window !== 'undefined' && window.process && window.process.type) {
+            console.log('Running in Electron:', window.process.type);
+        }
+    </script>
+</body>
+</html>
